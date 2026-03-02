@@ -1,14 +1,11 @@
 # Dependencies
 node_modules/
-admin-dashboard/node_modules/
-admin-dashboard/backend/node_modules/
 
 # Build output
 admin-dashboard/build/
 
 # Environment variables (contains secrets)
 .env
-admin-dashboard/backend/.env
 
 # Database files
 admin-dashboard/backend/data.json
@@ -30,11 +27,3 @@ Desktop.ini
 # Logs
 *.log
 npm-debug.log*
-
-# Package locks (keep one canonical version)
-# admin-dashboard/package-lock.json
-# admin-dashboard/backend/package-lock.json
-
-# Old/original folders (reorganized into proper structure)
-/SCREENSHOTS/
-/Shopify code/
