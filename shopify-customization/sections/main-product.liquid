@@ -1,0 +1,3716 @@
+{%- liquid
+  assign has_content_below_gallery = false
+
+  for block in section.blocks
+    if block.type == 'complementary_products'
+      assign has_content_below_gallery = true
+      break
+    endif
+
+    unless block.settings.show_below_gallery
+      continue
+    endunless
+
+    if block.type == 'accordion' and block.settings.title != blank and block.settings.content != blank or block.settings.liquid != blank or block.settings.page.content != blank
+      assign has_content_below_gallery = true
+      break
+    elsif block.type == 'description' and product.description != blank
+      assign has_content_below_gallery = true
+      break
+    endif
+  endfor
+-%}
+
+<style>
+  #shopify-section-{{ section.id }} {
+    --product-grid: "product-gallery" "product-info" {% if has_content_below_gallery %}"product-content"{% endif %} / minmax(0, 1fr);
+  }
+
+  @media screen and (min-width: 1000px) {
+    #shopify-section-{{ section.id }} {
+      {%- if has_content_below_gallery -%}
+        --product-grid: "product-gallery product-info" auto "product-content product-info" minmax(0, 1fr) / minmax(0, {{ 100.0 | minus: section.settings.product_info_size | divided_by: 100.0 }}fr) minmax(0, {{ section.settings.product_info_size | divided_by: 100.0 }}fr);
+      {%- else -%}
+        --product-grid: "product-gallery product-info" / minmax(0, {{ 100.0 | minus: section.settings.product_info_size | divided_by: 100.0 }}fr) minmax(0, {{ section.settings.product_info_size | divided_by: 100.0 }}fr);
+      {%- endif -%}
+    }
+  }
+</style>
+
+{%- assign color_scheme_hash = section.settings.color_scheme.settings.background_gradient
+  | default: section.settings.color_scheme.settings.background
+  | md5
+-%}
+{%- capture product_form_id -%}product-form-main-{{ product.id }}-{{ section.id }}{%- endcapture -%}
+
+<div class="section-spacing section-spacing--tight color-scheme color-scheme--{{ section.settings.color_scheme.id }} color-scheme--bg-{{ color_scheme_hash }}">
+  <div class="container {% unless section.settings.container_size == 'full' %}container--{{ section.settings.container_size }}{% endunless %}">
+    <product-rerender
+      id="product-info-{{ product.id }}-{{ section.id }}"
+      observe-form="{{ product_form_id }}"
+      allow-partial-rerender
+    >
+      <div class="product">
+        {%- if product.media.size > 0 -%}
+          {%- render 'product-gallery',
+            product: product,
+            product_form_id: product_form_id,
+            desktop_layout: section.settings.desktop_media_layout,
+            mobile_controls: section.settings.mobile_controls,
+            enable_media_autoplay: section.settings.enable_media_autoplay,
+            enable_video_looping: section.settings.enable_video_looping,
+            enable_image_zoom: section.settings.enable_image_zoom,
+            max_image_zoom_level: section.settings.max_image_zoom_level
+          -%}
+        {%- endif -%}
+
+        {%- render 'product-info',
+          product: product,
+          product_form_id: product_form_id,
+          center_basic_info: section.settings.center_basic_info,
+          has_content_below_gallery: has_content_below_gallery,
+          context: 'main_product'
+        -%}
+        {% comment %} {%- if product.available == false -%}
+          <div class="notify-me-wrapper" style="margin-top: 20px; text-align: center;">
+            <button
+              type="button"
+              class="button button--outline w-full notify-btn"
+              onclick="openNotifyPopup({{ product.id }})
+              data-product-id="{{ product.id }}"
+              {% if customer %}
+                data-customer-email="{{ customer.email }}"
+              {% endif %}
+            >
+              Notify Me When Available
+            </button>
+          </div>
+        {%- endif -%} {% endcomment %}
+
+        {%- comment -%}On Prestige, some content may be on the left part below the product gallery{%- endcomment -%}
+        {%- if has_content_below_gallery -%}
+          <div id="product-extra-information" class="product-content-below-gallery empty:hidden scroll-margin-offset">
+            {%- for block in section.blocks -%}
+              {%- unless block.settings.show_below_gallery -%}
+                {%- continue -%}
+              {%- endunless -%}
+
+              {%- case block.type -%}
+                {%- when 'description' -%}
+                  {%- if product.description != blank -%}
+                    {%- if block.settings.collapse_content -%}
+                      {%- assign accordion_title = 'product.general.description' | t -%}
+                      {%- render 'accordion',
+                        title: accordion_title,
+                        content: product.description,
+                        prose_content: true,
+                        size: 'lg',
+                        block: block
+                      -%}
+                    {%- else -%}
+                      <div class="product-content-below-gallery__description prose">
+                        {{- product.description -}}
+                      </div>
+                    {%- endif -%}
+                  {%- endif -%}
+
+                {%- when 'accordion' -%}
+                  {%- liquid
+                    assign accordion_title = block.settings.page.title | default: block.settings.title
+                    assign accordion_content = block.settings.page.content | default: block.settings.liquid | default: block.settings.content
+
+                    if accordion_title != blank and accordion_content != blank
+                      render 'accordion', title: accordion_title, content: accordion_content, size: 'lg', prose_content: true, icon: block.settings.icon, custom_icon: block.settings.custom_icon, block: block
+                    endif
+                  -%}
+
+                {%- when 'complementary_products' -%}
+                  {%- render 'complementary-products', product: product, block: block -%}
+              {%- endcase -%}
+            {%- endfor -%}
+          </div>
+        {%- endif -%}
+      </div>
+    </product-rerender>
+  </div>
+</div>
+
+{%- if section.settings.show_sticky_add_to_cart and product.available -%}
+  <product-rerender id="{{ product_form_id }}-sticky-bar" observe-form="{{ product_form_id }}">
+    <product-sticky-bar form="{{ product_form_id }}" class="product-sticky-bar">
+      <div class="product-sticky-bar__info sm-max:hidden">
+        <div class="h-stack gap-6">
+          {%- if product.media.size > 0 -%}
+            {%- assign default_media = product.selected_or_first_available_variant.featured_media
+              | default: product.featured_media
+            -%}
+            {{-
+              default_media
+              | image_url: width: default_media.width
+              | image_tag: loading: 'lazy', sizes: '60px', widths: '60,120,180'
+            -}}
+          {%- endif -%}
+
+          <div class="v-stack">
+            <span class="h6">{{ product.title }}</span>
+
+            {%- if product.selected_or_first_available_variant != null -%}
+              {%- render 'price-list',
+                variant: product.selected_or_first_available_variant,
+                hide_unit_price: true,
+                context: 'card'
+              -%}
+            {%- endif -%}
+          </div>
+        </div>
+      </div>
+
+      <buy-buttons class="buy-buttons" template="{{ product.template_suffix | escape }}" form="{{ product_form_id }}">
+        {%- liquid
+          assign button_disabled = false
+          assign button_style = 'solid'
+
+          if product.selected_or_first_available_variant == null
+            assign button_disabled = true
+            assign button_style = 'outline'
+            assign button_content = 'product.general.unavailable_button' | t
+          elsif product.selected_or_first_available_variant.available == false
+            assign button_disabled = true
+            assign button_style = 'outline'
+            assign button_content = 'product.general.sold_out_button' | t
+          else
+            if product.template_suffix contains 'pre-order'
+              assign button_content = 'product.general.pre_order_button' | t
+            else
+              assign button_content = 'product.general.add_to_cart_button' | t
+            endif
+          endif
+        -%}
+
+        {%- render 'button',
+          content: button_content,
+          style: button_style,
+          type: 'submit',
+          form: product_form_id,
+          disabled: button_disabled
+        -%}
+      </buy-buttons>
+    </product-sticky-bar>
+  </product-rerender>
+{%- endif -%}
+
+{%- comment -%}
+  IMPLEMENTATION NOTE: Shopify does not currently allows to render a given section within the context of a given product. However,
+  when rendering the quick buy drawers/popovers, we want to be able to re-use the merchant's choices (such as the selector type). This
+  is however only possible by rendering the whole product page, and extracting the relevant part. Here, we therefore render the
+  quick buy information in a template, that will be extracted in JS, which ensures it is not visible in the main product page
+{%- endcomment -%}
+{%- render 'product-quick-buy', product: product -%}
+
+<script>
+  // We save the product ID in local storage to be eventually used for recently viewed section
+  try {
+    let recentlyViewedProducts = JSON.parse(localStorage.getItem('theme:recently-viewed-products') || '[]');
+
+    recentlyViewedProducts = recentlyViewedProducts.filter(item => item !== {{ product.id }}); // Delete product to remove to the start
+    recentlyViewedProducts.unshift({{ product.id }}); // Add at the start
+
+    localStorage.setItem('theme:recently-viewed-products', JSON.stringify(recentlyViewedProducts));
+  } catch (e) {
+    // Safari in private mode does not allow setting item, we silently fail
+  }
+</script>
+
+{% comment %} ============================================================
+   ENGRAVING: Product handler MUST come before the engraving UI
+   so engrave_image is set before the if-guard checks it.
+   ============================================================ {% endcomment %}
+
+{% assign ph = product.handle %}
+
+{% comment %} ===== TWO-IMAGE DEFAULTS (set before product handler) ===== {% endcomment %}
+{% assign engrave_image_2 = '' %}
+{% assign text_top_2 = '' %}
+{% assign text_left_2 = '' %}
+{% assign text_size_2 = '' %}
+{% assign engrave_text_on = '1' %}
+{% assign image_2_width = '420px' %}
+{% assign motif_margin = '-0.15em 0 0 0' %}
+{% assign motif_margin_2 = '-0.15em 0 0 0' %}
+
+{% comment %} ========== LIPSTICKS / LIP PRODUCTS ========== {% endcomment %}
+
+{% if ph contains 'sinful-matte-lipcolor' %}
+  {% assign engrave_image = 'engrave-lipstick.png' %}
+  {% assign product_type = 'lipstick' %}
+  {% assign text_top = '61%' %}
+  {% assign text_left = '69%' %}
+  {% assign text_size = '12px' %}
+  {% assign motif_margin = '-0.15em 0 0 0' %}
+
+{% elsif ph contains 'starry-flip-lipcolor' %}
+  {% assign engrave_image = 'engrave-Starry-Flip-Lipcolor.png' %}
+  {% assign product_type = 'lipstick' %}
+  {% assign text_top = '60%' %}
+  {% assign text_left = '74%' %}
+  {% assign text_size = '12px' %}
+  {% assign motif_margin = '-0.3em 0 0 0' %}
+
+{% elsif ph contains 'colorbar-powerkiss-vegan-matte-lipcolor' %}
+  {% assign engrave_image = 'engrave-colorbar-powerkiss-vegan-matte-lipcolor.png' %}
+  {% assign product_type = 'lipstick' %}
+  {% assign text_top = '60%' %}
+  {% assign text_left = '80%' %}
+  {% assign text_size = '9px' %}
+  {% assign motif_margin = '-0.15em 0 0 0' %}
+  {% assign engrave_image_2 = 'engrave-colorbar-powerkiss-vegan-matte-lipcolor1.png' %}
+  {% assign text_top_2 = '' %}
+  {% assign text_left_2 = '' %}
+  {% assign text_size_2 = '' %}
+  {% assign engrave_text_on = '2' %}
+  {% assign image_2_width = '200px' %}
+  {% assign motif_margin_2 = '-0.15em 0 0 0' %}
+
+{% elsif ph contains 'powerkiss-matte-lipstick' %}
+  {% assign engrave_image = 'engrave-powerkiss-matte-lipstick.png' %}
+  {% assign product_type = 'lipstick' %}
+  {% assign text_top = '60%' %}
+  {% assign text_left = '50%' %}
+  {% assign text_size = '12px' %}
+  {% assign motif_margin = '-0.15em 0 0 0' %}  
+
+{% elsif ph contains 'sinful-liquid-lipstick' %}
+  {% assign engrave_image = 'engrave-sinful-liquid-lipstick.png' %}
+  {% assign product_type = 'lipstick' %}
+  {% assign text_top = '60%' %}
+  {% assign text_left = '35%' %}
+  {% assign text_size = '12px' %}
+  {% assign motif_margin = '-0.15em 0 0 0' %}   
+
+{% elsif ph contains 'take-me-as-i-am-vegan-matte-lipstick' %}
+  {% assign engrave_image = 'engrave-lipstick.png' %}
+  {% assign product_type = 'lipstick' %}
+  {% assign text_top = '61%' %}
+  {% assign text_left = '69%' %}
+  {% assign text_size = '12px' %}
+  {% assign motif_margin = '-0.15em 0 0 0' %}
+
+{% elsif ph contains 'take-me-as-i-am-vegan-creme-lipstick' %}
+  {% assign engrave_image = 'engrave-lipstick.png' %}
+  {% assign product_type = 'lipstick' %}
+  {% assign text_top = '61%' %}
+  {% assign text_left = '69%' %}
+  {% assign text_size = '12px' %}
+  {% assign motif_margin = '-0.15em 0 0 0' %}
+
+{% comment %} ========== FOUNDATIONS ========== {% endcomment %}
+
+{% elsif ph contains '24hrs-wear-weightless-powder-foundation' %}
+  {% assign engrave_image = 'engrave-24hrs-wear-weightless-powder-foundation.png' %}
+  {% assign product_type = 'foundation' %}
+  {% assign text_top = '80%' %}
+  {% assign text_left = '51%' %}
+  {% assign text_size = '15px' %}
+  {% assign motif_margin = '-0.3em 0 0 0' %}
+
+{% elsif ph contains 'amino-skin-radiant-foundation' %}
+  {% assign engrave_image = 'engrave-amino-skin-radiant-foundation.png' %}
+  {% assign product_type = 'foundation' %}
+  {% assign text_top = '80%' %}
+  {% assign text_left = '51%' %}
+  {% assign text_size = '15px' %}
+  {% assign motif_margin = '-0.3em 0 0 0' %}
+
+{% elsif ph contains 'amino-healthy-glow-4-in-1-foundation' %}
+  {% assign engrave_image = 'engrave-amino-healthy-glow-4-in-1-foundation.png' %}
+  {% assign product_type = 'foundation' %}
+  {% assign text_top = '50%' %}
+  {% assign text_left = '51%' %}
+  {% assign text_size = '15px' %}
+  {% assign motif_margin = '-0.3em 0 0 0' %}  
+
+{% comment %} ========== LIP GLOSS ========== {% endcomment %}
+
+{% elsif ph contains 'starlit-lip-gloss' %}
+  {% assign engrave_image = 'engrave-starlit-lip-gloss.png' %}
+  {% assign product_type = 'compact' %}
+  {% assign text_top = '56%' %}
+  {% assign text_left = '85%' %}
+  {% assign text_size = '6px' %}
+  {% assign motif_margin = '-0.15em 0 0 0' %}
+  {% assign engrave_image_2 = 'engrave-starlit-lip-gloss1.png' %}
+  {% assign text_top_2 = '49%' %}
+  {% assign text_left_2 = '55%' %}
+  {% assign text_size_2 = '12px' %}
+  {% assign engrave_text_on = '2' %}
+  {% assign image_2_width = '200px' %}
+  {% assign motif_margin_2 = '-0.3em 0 0 0' %}
+
+{% comment %} ========== HIGHLIGHTER ========== {% endcomment %}
+
+{% elsif ph contains 'glow-with-love-highlighter' %}
+  {% assign engrave_image = 'engrave-glow-with-love-highlighter.png' %}
+  {% assign product_type = 'compact' %}
+  {% assign text_top = '80%' %}
+  {% assign text_left = '50%' %}
+  {% assign text_size = '12px' %}
+  {% assign motif_margin = '-0.15em 0 0 0' %}
+
+{% comment %} ========== STICKS & CONCEALERS ========== {% endcomment %}
+
+{% elsif ph contains 'full-cover-makeup-stick' %}
+  {% assign engrave_image = 'engrave-full-cover-makeup-stick.png' %}
+  {% assign product_type = 'stick' %}
+  {% assign text_top = '58%' %}
+  {% assign text_left = '73%' %}
+  {% assign text_size = '12px' %}
+  {% assign motif_margin = '-0.3em 0 0 0' %}
+
+{% elsif ph contains 'flawless-full-cover-concealer' %}
+  {% assign engrave_image = 'engrave-flawless-full-cover-concealer.png' %}
+  {% assign product_type = 'stick' %}
+  {% assign text_top = '53%' %}
+  {% assign text_left = '60%' %}
+  {% assign text_size = '10px' %}
+  {% assign motif_margin = '-0.15em 0 0 0' %}
+  {% assign engrave_image_2 = 'engrave-flawless-full-cover-concealer1.png' %}
+  {% assign text_top_2 = '50%' %}
+  {% assign text_left_2 = '58%' %}
+  {% assign text_size_2 = '12px' %}
+  {% assign engrave_text_on = '2' %}
+  {% assign image_2_width = '200px' %}
+  {% assign motif_margin_2 = '-0.3em 0 0 0' %}
+
+{% elsif ph contains '24hrs-wear-concealer-palette' %}
+  {% assign engrave_image = 'engrave-24hrs-wear-concealer-palette.png' %}
+  {% assign product_type = 'palette' %}
+  {% assign text_top = '28%' %}
+  {% assign text_left = '50%' %}
+  {% assign text_size = '14px' %}
+  {% assign motif_margin = '-0.15em 0 0 0' %}
+
+{% comment %} ========== POWDERS & COMPACTS ========== {% endcomment %}
+
+{% elsif ph contains 'sheer-touch-mattifying-loose-powder' %}
+  {% assign engrave_image = 'engrave-foundation.png' %}
+  {% assign product_type = 'powder' %}
+  {% assign text_top = '80%' %}
+  {% assign text_left = '51%' %}
+  {% assign text_size = '15px' %}
+  {% assign motif_margin = '-0.3em 0 0 0' %}
+
+{% elsif ph contains 'perfect-match-compact' %}
+  {% assign engrave_image = 'engrave-amino-skin-radiant-foundation.png' %}
+  {% assign product_type = 'compact' %}
+  {% assign text_top = '80%' %}
+  {% assign text_left = '51%' %}
+  {% assign text_size = '15px' %}
+  {% assign motif_margin = '-0.3em 0 0 0' %}
+
+{% elsif ph contains 'pro-banana-powder' %}
+  {% assign engrave_image = 'engrave-amino-skin-radiant-foundation.png' %}
+  {% assign product_type = 'powder' %}
+  {% assign text_top = '80%' %}
+  {% assign text_left = '51%' %}
+  {% assign text_size = '15px' %}
+  {% assign motif_margin = '-0.3em 0 0 0' %}
+
+{% comment %} ========== CREAMS & SKINCARE ========== {% endcomment %}
+
+{% elsif ph contains 'instant-glow-cream' %}
+  {% assign engrave_image = 'engrave-24hrs-wear-weightless-powder-foundation.png' %}
+  {% assign product_type = 'cream' %}
+  {% assign text_top = '80%' %}
+  {% assign text_left = '51%' %}
+  {% assign text_size = '15px' %}
+  {% assign motif_margin = '-0.3em 0 0 0' %}
+
+{% elsif ph contains 'hydra-white-night-creme' %}
+  {% assign engrave_image = 'engrave-24hrs-wear-weightless-powder-foundation.png' %}
+  {% assign product_type = 'cream' %}
+  {% assign text_top = '80%' %}
+  {% assign text_left = '51%' %}
+  {% assign text_size = '15px' %}
+  {% assign motif_margin = '-0.3em 0 0 0' %}
+
+{% elsif ph contains 'hydra-white-day-creme' %}
+  {% assign engrave_image = 'engrave-24hrs-wear-weightless-powder-foundation.png' %}
+  {% assign product_type = 'cream' %}
+  {% assign text_top = '80%' %}
+  {% assign text_left = '51%' %}
+  {% assign text_size = '15px' %}
+  {% assign motif_margin = '-0.3em 0 0 0' %}
+
+{% elsif ph contains 'timeless-lift-miracle-lifting-day-creme' %}
+  {% assign engrave_image = 'engrave-24hrs-wear-weightless-powder-foundation.png' %}
+  {% assign product_type = 'cream' %}
+  {% assign text_top = '80%' %}
+  {% assign text_left = '51%' %}
+  {% assign text_size = '15px' %}
+  {% assign motif_margin = '-0.3em 0 0 0' %}
+
+{% elsif ph contains 'timeless-lift-miracle-night-restoring-creme' %}
+  {% assign engrave_image = 'engrave-24hrs-wear-weightless-powder-foundation.png' %}
+  {% assign product_type = 'cream' %}
+  {% assign text_top = '80%' %}
+  {% assign text_left = '51%' %}
+  {% assign text_size = '15px' %}
+  {% assign motif_margin = '-0.3em 0 0 0' %}
+
+{% elsif ph contains 'miracle-glow-moisturiser' %}
+  {% assign engrave_image = 'engrave-24hrs-wear-weightless-powder-foundation.png' %}
+  {% assign product_type = 'cream' %}
+  {% assign text_top = '80%' %}
+  {% assign text_left = '51%' %}
+  {% assign text_size = '15px' %}
+  {% assign motif_margin = '-0.3em 0 0 0' %}
+
+{% elsif ph contains 'miracle-glow-primer' %}
+  {% assign engrave_image = 'engrave-24hrs-wear-weightless-powder-foundation.png' %}
+  {% assign product_type = 'cream' %}
+  {% assign text_top = '80%' %}
+  {% assign text_left = '51%' %}
+  {% assign text_size = '15px' %}
+  {% assign motif_margin = '-0.3em 0 0 0' %}
+
+{% comment %} ========== EYESHADOW & EYE KITS ========== {% endcomment %}
+
+{% elsif ph contains 'moon-lava-eyeshadow' %}
+  {% assign engrave_image = 'engrave-moon-lava-eyeshadow.png' %}
+  {% assign product_type = 'palette' %}
+  {% assign text_top = '60%' %}
+  {% assign text_left = '74%' %}
+  {% assign text_size = '10px' %}
+  {% assign motif_margin = '-0.15em 0 0 0' %}
+
+{% elsif ph contains 'browful-shaping-and-defining-kit' %}
+  {% assign engrave_image = 'engrave-browful-shaping-and-defining-kit.png' %}
+  {% assign product_type = 'palette' %}
+  {% assign text_top = '25%' %}
+  {% assign text_left = '50%' %}
+  {% assign text_size = '12px' %}
+  {% assign motif_margin = '-0.3em 0 0 0' %}
+
+{% elsif ph contains 'bewitching-eyeshadow-palette' %}
+  {% assign engrave_image = 'engrave-browful-shaping-and-defining-kit.png' %}
+  {% assign product_type = 'palette' %}
+  {% assign text_top = '25%' %}
+  {% assign text_left = '50%' %}
+  {% assign text_size = '12px' %}
+  {% assign motif_margin = '-0.3em 0 0 0' %}
+
+{% comment %} ===== COLORBAR EYESHADOW PALETTES (SAME CONTAINER) ===== {% endcomment %}
+
+{% elsif ph contains 'colorbar-berry-blush-eyeshadow-palette' %}
+  {% assign engrave_image = 'engrave-colorbar-berry-blush-eyeshadow-palette.png' %}
+  {% assign product_type = 'palette' %}
+  {% assign text_top = '85%' %}
+  {% assign text_left = '50%' %}
+  {% assign text_size = '10px' %}
+  {% assign motif_margin = '-0.15em 0 0 0' %}
+
+{% elsif ph contains 'colorbar-just-nude-eyeshadow-palette' %}
+  {% assign engrave_image = 'engrave-colorbar-berry-blush-eyeshadow-palette.png' %}
+  {% assign product_type = 'palette' %}
+  {% assign text_top = '85%' %}
+  {% assign text_left = '50%' %}
+  {% assign text_size = '10px' %}
+  {% assign motif_margin = '-0.15em 0 0 0' %}
+
+{% elsif ph contains 'colorbar-nectar-crush-eyeshadow-palette' %}
+  {% assign engrave_image = 'engrave-colorbar-berry-blush-eyeshadow-palette.png' %}
+  {% assign product_type = 'palette' %}
+  {% assign text_top = '85%' %}
+  {% assign text_left = '50%' %}
+  {% assign text_size = '10px' %}
+  {% assign motif_margin = '-0.15em 0 0 0' %}
+
+{% comment %} ========== DEFAULT FALLBACK ========== {% endcomment %}
+
+{% else %}
+  {% assign engrave_image = '' %}
+  {% assign product_type = 'default' %}
+  {% assign text_top = '53%' %}
+  {% assign text_left = '60%' %}
+  {% assign text_size = '14px' %}
+  {% assign motif_margin = '-0.15em 0 0 0' %}
+{% endif %}
+
+{% comment %} Check if second image exists {% endcomment %}
+{% if engrave_image_2 != '' %}
+  {% assign has_second_image = true %}
+{% else %}
+  {% assign has_second_image = false %}
+{% endif %}
+
+{% comment %} ===== ONLY SHOW ENGRAVING ON LISTED PRODUCTS ===== {% endcomment %}
+{% if engrave_image != '' %}
+
+<!-- NEW: Engraving link under Buy buttons -->
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+  var mainBuyButtons = document.querySelector('.buy-buttons');
+
+  if (mainBuyButtons && !document.getElementById('engrave-link-wrap')) {
+    var wrap = document.createElement('div');
+    wrap.id = 'engrave-link-wrap';
+    wrap.style.textAlign = 'center';
+    wrap.style.marginTop = '16px';
+
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = 'Make It Truly Yours - Engrave This';
+    btn.style.background = 'none';
+    btn.style.border = '0';
+    btn.style.padding = '0';
+    btn.style.color = '#5c2b17';
+    btn.style.fontSize = '16px';
+    btn.style.fontWeight = '500';
+    btn.style.textDecoration = 'underline';
+    btn.style.cursor = 'pointer';
+
+    wrap.appendChild(btn);
+    mainBuyButtons.insertAdjacentElement('afterend', wrap); 
+
+    btn.addEventListener('click', function () {
+      const scrollY = window.scrollY;
+
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
+
+      document.getElementById('engrave-modal-backdrop').style.display = 'flex';
+      document.body.setAttribute('data-scroll-y', scrollY);
+    });
+  }
+});
+</script>
+
+
+<script>
+document.addEventListener('click', function(e){
+  if (
+    e.target.classList.contains('eng-close') ||
+    e.target.classList.contains('btn-outline')
+  ){
+    const scrollY = document.body.getAttribute('data-scroll-y');
+
+    document.getElementById('engrave-modal-backdrop').style.display = 'none';
+
+    document.body.style.position = '';
+    document.body.style.top = '';
+    document.body.style.width = '';
+    document.body.style.overflow = '';
+
+    if (scrollY) {
+      window.scrollTo(0, parseInt(scrollY, 10));
+    }
+  }
+});
+</script>
+
+<div id="engrave-modal-backdrop" style="display:none;">
+  <div id="engrave-modal-inner">
+
+  <!-- Font similar to Colorbar -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+  <style>
+    :root{
+      --eng-brown: #5c2b17;
+      --eng-brown-light: #8a4a27;
+      --eng-border: #e7b59c;
+      --eng-border-soft: #f5dacb;
+      --eng-bg: #ffffff;
+      --eng-page-bg: #f0f0f0;
+      --eng-orange: #c76715;
+      --eng-orange-hover: #a95610;
+      --eng-text-main: #3b2417;
+      --eng-text-muted: #77716c;
+    }
+
+    /* ----- custom local font ----- */
+    @font-face{
+      font-family: "English Script Local";
+      src: url("English Script.ttf") format("truetype");
+      font-weight: normal;
+      font-style: normal;
+      font-display: swap;
+    }
+
+    /* Emoticons font (uploaded to your CDN) */
+    @font-face {
+      font-family: 'Emoticons';
+      src: url("https://cdn.shopify.com/s/files/1/0939/2845/6557/files/emoticons.ttf?v=1765443353") format("truetype");
+      font-display: swap;
+    }
+
+    /* helper font classes used by JS */
+    .font-futura { font-family: "Futura-Thin", system-ui, sans-serif; }
+    .font-rockwell { font-family: "Rockwell", serif; }
+    .font-avant   { font-family: "Avant Garde", "Century Gothic", sans-serif; }
+    .font-english-script { font-family: "English Script Local", "Poppins", system-ui, sans-serif; }
+
+    *{
+      box-sizing:border-box;
+      margin:0;
+      padding:0;
+    }
+
+     #engrave-modal-inner{
+      font-family:"Poppins","Inter",system-ui,sans-serif;
+      background:var(--eng-page-bg);
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:var(--eng-text-main);
+    }
+
+    /* ========= MODAL SHELL ========= */
+
+    .engraving-modal {
+      position: relative;
+      width: 960px !important;
+      max-width: 88vw !important;
+      max-height: 97vh !important;
+      background: var(--eng-bg);
+      border-radius: 6px;
+      box-shadow: 0 12px 40px rgba(0,0,0,.18);
+      padding: 32px 36px 28px;
+      overflow-y: auto;
+    }
+
+    .eng-close{
+      position:absolute;
+      top:18px;
+      right:26px;
+      border:0;
+      background:transparent;
+      font-size:26px;
+      line-height:1;
+      cursor:pointer;
+      color:var(--eng-brown);
+    }
+
+    .eng-title{
+      text-align:center;
+      font-size:24px;
+      font-weight:600;
+      letter-spacing:.03em;
+      color:var(--eng-brown);
+      margin-bottom:26px;
+    }
+
+    /* ========= TWO COLUMNS ========= */
+
+    .eng-main{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:26px;
+    }
+
+    .eng-panel{
+      border:1px solid var(--eng-border);
+      border-radius:3px;
+      padding:0 32px 32px;
+    }
+
+    .eng-panel-header{
+      border-bottom:1px solid var(--eng-border);
+      text-align:center;
+      padding:14px 0 10px;
+      font-weight:500;
+      letter-spacing:.05em;
+      text-transform:capitalize;
+    }
+
+    .eng-panel-body{
+      padding-top:32px;
+    }
+
+    /* ========= LEFT – PREVIEW ========= */
+
+    .eng-max-chars{
+      font-size:12px;
+      font-weight: 400;
+      text-align:center;
+      margin-bottom:15px;
+      color:#000;
+    }
+
+    /* speech bubble that acts as text box */
+    .eng-bubble {
+      width: 210px !important;
+      padding: 5px 10px !important;
+      height: 36.328px !important;
+      margin: 16.745px auto !important;
+      border: 1px solid #5c2b17;
+      box-shadow: 0 4px 8px rgba(0,0,0,.35);
+      position: relative;
+      background: #ffffff;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+
+    .eng-bubble::after {
+      content: "";
+      position: absolute;
+      right: 50px; 
+      left:auto;
+      bottom: -9px;
+      width: 14px;
+      height: 14px;
+      background: #ffffff;
+      border-right: 1px solid #5c2b17;
+      border-bottom: 1px solid #5c2b17;
+      transform: rotate(45deg);
+    }
+
+
+    /* Replaced input — now contenteditable div */
+    .eng-bubble-input{
+      min-width: 80px;
+      width: 100%;
+      border: none;
+      outline: none;
+      background: transparent;
+      text-align: center;
+      font-size:16px;
+      letter-spacing:.12em;
+      color:var(--eng-text-main);
+      text-transform:uppercase;
+      white-space:nowrap;
+      overflow: hidden;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:2px;
+      caret-color: var(--eng-brown);
+    }
+
+    .eng-bubble-input:focus {
+      outline: none;
+    }
+
+    .eng-bubble-motif{
+      font-size:18px;
+      margin-left:6px;
+    }
+
+    .eng-product-image{
+      margin-top:30px;
+      text-align:center;
+    }
+
+    /* lipstick + engraving overlay */
+    .eng-lipstick-wrap{
+      position:relative;
+      display:inline-block;
+      overflow:hidden;
+    }
+
+    .eng-product-image > .eng-lipstick-wrap img{
+      max-width:420px;
+      width:100%;
+      height:auto;
+      display:block;
+    }
+
+    .eng-second-image-wrap img {
+      max-width: {{ image_2_width }};
+      width: 100%;
+      height: auto;
+      display: block;
+      margin: 0 auto;
+    }
+
+    .eng-lip-text{
+      position:absolute;
+      top: {{ text_top }};
+      left: {{ text_left }};
+      transform:translate(-50%, -50%);
+      white-space:nowrap;
+      font-size:{{ text_size }};
+      letter-spacing:0.02em;
+      color:#ffffff;
+      font-weight:400;
+      text-shadow:0 0 3px rgba(0,0,0,.6);
+      display:inline-flex;
+      gap:0;
+      align-items:center;
+    }
+
+    /* ===== SECOND IMAGE OVERLAY (ADDED) ===== */
+    .eng-lip-text-2{
+      position:absolute;
+      top: {{ text_top_2 | default: '50%' }};
+      left: {{ text_left_2 | default: '50%' }};
+      transform:translate(-50%, -50%);
+      white-space:nowrap;
+      font-size: {{ text_size_2 | default: '14px' }};
+      letter-spacing:0.02em;
+      color:#ffffff;
+      font-weight:400;
+      text-shadow:0 0 3px rgba(0,0,0,.6);
+      display:inline-flex;
+      gap:0;
+      align-items:center;
+    }
+
+    /* ===== SECOND IMAGE CONTAINER (ADDED) ===== */
+    .eng-second-image-wrap {
+      margin-top: 24px;
+      text-align: center;
+    }
+
+    /* ========= RIGHT – CUSTOMIZE ========= */
+
+    .eng-field-label{
+      font-size:11px;
+      font-weight:550;
+      margin-bottom:8px;
+      color: #42140e;
+      font-family: "Montserrat", sans-serif;
+    }
+
+    .eng-field-group{
+      margin-bottom:24px;
+      font-weight:600;
+    }
+
+    .eng-shade-pill{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:8px 12px;
+      border:1px solid var(--eng-border);
+      border-radius:3px;
+      font-size:11px;
+      cursor:default;
+      color:#000000;
+      font-weight:600;
+    }
+
+    .eng-shade-swatch{
+      width:12px;
+      height:12px;
+      border-radius:2px;
+      background:#b3735b;
+    }
+
+    .eng-font-tabs{
+      display:flex;
+      gap:0;
+      border-radius:3px;
+      overflow:hidden;
+      border:1px solid var(--eng-border-soft);
+    }
+
+    .eng-font-tab {
+      flex: 1;
+      font-size: 10px !important;
+      padding: 0 !important;
+      height: 23.568px !important;
+      line-height: 23.568px !important;
+      text-align: center;
+      border-right: 1px solid var(--eng-border-soft);
+      background: #faf7f5;
+      color: var(--eng-text-muted);
+      cursor: pointer;
+      user-select: none;
+      text-transform: capitalize;
+    }
+    .eng-font-tab:nth-child(1) { font-family: "Futura-Thin", sans-serif !important; }
+    .eng-font-tab:nth-child(2) { font-family: "Rockwell", serif !important; }
+    .eng-font-tab:nth-child(3) { font-family: "Avant Garde", sans-serif !important; }
+
+    .eng-font-tab.last-child{ border-right:none; }
+
+    .eng-font-tab.is-selected{
+      background:#fef4ec;
+      border-color:var(--eng-border);
+      color:var(--eng-brown);
+      font-weight:500;
+    }
+
+    .eng-box {
+      border: 1px solid var(--eng-border-soft);
+      padding: 16px 20px 18px;
+      border-radius: 3px;
+      width: 100%;
+      max-width: 100%;
+    }
+
+
+
+    /* ====== motif styles ====== */
+    .motif_sec h5{
+      font-size:12px;
+      margin-bottom:8px;
+      color:var(--eng-text-muted);
+    }
+
+    .emojiMotif {
+      cursor: pointer;
+      width: 30px;
+      display: inline-block;
+      height: 30px;
+      font: 30px/40px Emoticons !important;
+      text-align: center;
+      margin: 0;
+      text-transform: none;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+    }
+
+    .emojiMotif.Emotifontfamily {
+      font-family: 'Emoticons';
+    }
+
+    .motif_row {
+      display:flex;
+      align-items:center;
+      flex-wrap:wrap;
+      gap: 1px;
+      margin-bottom:0px;
+     }
+
+
+    .emojiMotif.is-selected {
+      box-shadow: none;
+    }
+
+    .eng-actions{
+      margin-top:34px;
+      display:flex;
+      gap:24px;
+      justify-content:flex-start;
+    }
+
+    .btn{
+      min-width:150px;
+      padding:10px 22px;
+      border-radius:2px;
+      border: solid 1px #d8a38d;
+      font-size:13px;
+      text-align: center;
+      cursor:pointer;
+      transition:background .2s ease,color .2s ease,border-color .2s ease, box-shadow .2s ease;
+    }
+
+    .btn-outline{
+      background:#fff;
+      color: #000000 inherit;
+      font-weight: 600;
+    }
+
+    .btn-outline:hover{
+      background:#fef4ec;
+    }
+
+    .btn-primary{
+      background:var(--eng-orange);
+      border-color: solid 1px #d8a38d;
+      color:#fff;
+    }
+
+    .btn-primary:hover{
+      background:var(--eng-orange-hover);
+      border-color:var(--eng-orange-hover);
+      box-shadow:0 6px 12px rgba(0,0,0,.18);
+    }
+
+    .eng-note{
+      margin-top:34px;
+      padding:0 6px 4px;
+    }
+
+    .eng-note-title{
+      font-size:14px;
+      font-weight:600;
+      margin-bottom:10px;
+    }
+
+    .eng-note-grid{
+      display:grid;
+      grid-template-columns:1.1fr 1.1fr;
+      gap:26px;
+      font-size:11px;
+      line-height:1.6;
+      color: #000 !important;
+    }
+
+    .eng-note-item{
+      display:flex;
+      align-items:flex-start;
+      gap:6px;
+    }
+
+    .eng-note-bullet{
+      color:var(--eng-brown-light);
+      margin-top:2px;
+    }
+
+    /* preview motif styling */
+    .eng-lip-text .Emotifontfamily {
+      font-family: 'Emoticons';
+      font-size: 1.35em;
+      line-height: 0;
+      display:inline;
+      vertical-align: middle;
+      margin: {{ motif_margin }};
+    }
+
+    .eng-lip-text-2 .Emotifontfamily {
+      font-family: 'Emoticons';
+      font-size: 1.35em;
+      line-height: 0;
+      display:inline;
+      vertical-align: middle;
+      margin: {{ motif_margin_2 }};
+    }
+
+    .eng-lip-text .plain-char {
+      font-family: inherit;
+      font-size: inherit;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      line-height: 0;
+      display:inline;
+      vertical-align: middle;
+    }
+
+    .eng-lip-text-2 .plain-char {
+      font-family: inherit;
+      font-size: inherit;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      line-height: 0;
+      display:inline;
+      vertical-align: middle;
+    }
+
+    /* contenteditable motif span inside input */
+    .eng-bubble-input .Emotifontfamily {
+      font-family: 'Emoticons';
+      font-size: 14px;
+      line-height: 1;
+      display:inline-block;
+      vertical-align:middle;
+      margin:0;
+      text-transform: none; 
+    }
+
+    .eng-bubble-input .plain-char {
+      font-family: inherit;
+      font-size: 16px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      display:inline-block;
+      margin:0 1px;
+    }
+
+    /* ensure caret visible when input empty */
+    .eng-bubble-input.empty::after{
+      content: '\00a0';
+    }
+
+    @media screen and (min-width: 1000px) {
+  #engrave-link-wrap button {
+    font-size: 24px !important;
+    padding: 16px 32px !important;
+  }
+}
+@media screen and (min-width: 1000px) {
+  #engrave-link-wrap button {
+    padding-left: 60px !important;
+    padding-right: 60px !important;
+  }
+}
+
+  </style>
+  <style>
+/* ===== ENG MODAL OVERLAY ===== */
+#engrave-modal-backdrop{
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.55);
+  z-index: 9999;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+/* neutralize engraving page body styles */
+#engrave-modal-inner{
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+}
+.engrave-base {
+    width: 100%;
+    max-width: 420px;
+    height: auto;
+    display: block;
+    margin: 20px auto 0;
+}
+
+/* ===== ENGRAVING MODAL – MOBILE RESPONSIVE ===== */
+
+@media screen and (max-width: 999px) {
+  .engraving-modal {
+    width: 100% !important;
+    max-width: 100vw !important;
+    max-height: 100vh !important;
+    height: 100vh;
+    border-radius: 0;
+    padding: 20px 16px 24px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  #engrave-modal-inner {
+    align-items: flex-start;
+  }
+
+  .eng-title {
+    font-size: 20px;
+    margin-bottom: 18px;
+  }
+
+  .eng-main {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .eng-panel {
+    padding: 0 16px 20px;
+  }
+
+  .eng-panel-header {
+    padding: 12px 0 8px;
+    font-size: 14px;
+  }
+
+  .eng-panel-body {
+    padding-top: 20px;
+  }
+
+  /* Preview image sizing */
+  .eng-product-image > .eng-lipstick-wrap img {
+    max-width: 100%;
+  }
+
+  .eng-second-image-wrap img {
+    max-width: 160px;
+  }
+
+  .eng-bubble {
+    width: 80% !important;
+    height: 36.328px !important;
+    margin: 16.745px auto !important;
+  }
+  .eng-bubble-input {
+    font-size: 14px;
+  }
+
+  .eng-max-chars {
+    font-size: 11px;
+    margin-bottom: 10px;
+  }
+
+  /* Font tabs */
+  .eng-font-tab {
+    font-size: 9px !important;
+    height: 28px !important;
+    line-height: 28px !important;
+  }
+
+  /* Motif icons */
+  .emojiMotif {
+    width: 28px;
+    height: 28px;
+    font-size: 28px;
+  }
+
+  /* Action buttons */
+  .eng-actions {
+    margin-top: 24px;
+    gap: 12px;
+    justify-content: center;
+  }
+
+  .btn {
+    min-width: 120px;
+    padding: 10px 18px;
+    font-size: 13px;
+  }
+
+  /* Notes section */
+  .eng-note {
+    margin-top: 20px;
+    padding: 0 4px 4px;
+  }
+
+  .eng-note-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    font-size: 11px;
+  }
+
+  .eng-note-title {
+    font-size: 13px;
+    margin-bottom: 8px;
+  }
+
+  .eng-close {
+    top: 14px;
+    right: 16px;
+    font-size: 24px;
+  }
+
+  .eng-field-group {
+    margin-bottom: 18px;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  .engraving-modal {
+    padding: 16px 12px 20px;
+  }
+
+  .eng-panel {
+    padding: 0 12px 16px;
+  }
+
+  .eng-product-image {
+    margin-top: 20px;
+  }
+
+  .eng-actions {
+    flex-direction: row;
+    gap: 10px;
+  }
+
+  .btn {
+    flex: 1;
+    min-width: unset;
+  }
+}
+
+</style>
+
+<div class="engraving-modal">
+  <button class="eng-close" type="button">&times;</button>
+  <h1 class="eng-title">Add Engraving</h1>
+
+  <div class="eng-main">
+
+    <!-- LEFT PANEL -->
+    <div class="eng-panel">
+      <div class="eng-panel-header">Engraving Preview</div>
+      <div class="eng-panel-body">
+
+        <p class="eng-max-chars">Maximum 12 Characters Including Spaces</p>
+
+        <div class="eng-bubble">
+          <!-- contenteditable replaces input; behavior handled by JS -->
+          <div class="eng-bubble-input empty" role="textbox" contenteditable="true" aria-multiline="false"></div>
+          <span class="eng-bubble-motif"></span>
+        </div>
+
+        <div class="eng-product-image">
+          <!-- PRIMARY IMAGE (UNCHANGED) -->
+          <div class="eng-lipstick-wrap">
+            <img class="engrave-base" 
+              src="{{ engrave_image | asset_url }}" 
+              width="400"
+              height="400"
+              alt="Engraving Preview"
+            />
+            {% if engrave_text_on == '1' or engrave_text_on == 'both' %}
+              <div class="eng-lip-text"></div>
+            {% endif %}
+          </div>
+
+          <!-- SECOND IMAGE (only shows if engrave_image_2 is set) -->
+          {% if has_second_image %}
+          <div class="eng-second-image-wrap">
+            <div class="eng-lipstick-wrap">
+              <img src="{{ engrave_image_2 | asset_url }}" width="200" height="200" alt="Engraving Preview 2" />
+              {% if engrave_text_on == '2' or engrave_text_on == 'both' %}
+                <div class="eng-lip-text-2"></div>
+              {% endif %}
+            </div>
+          </div>
+          {% endif %}
+        </div>
+
+      </div>
+    </div>
+
+    <!-- RIGHT PANEL -->
+    <div class="eng-panel">
+      <div class="eng-panel-header">Customize</div>
+      <div class="eng-panel-body">
+
+        <div class="eng-field-group">
+          <div class="eng-field-label">Selected Shade</div>
+          <div class="eng-shade-pill">
+            <span class="eng-shade-swatch"></span>
+            <span>Multicolor</span>
+          </div>
+        </div>
+
+        <div class="eng-field-group">
+          <div class="eng-field-label">Selected Font</div>
+          <div class="eng-font-tabs">
+            <div class="eng-font-tab is-selected">Futura-Thin</div>
+            <div class="eng-font-tab">Rockwell</div>
+            <div class="eng-font-tab">Avant Garde</div>
+          </div>
+        </div>
+
+        <div class="eng-field-group">
+          <div class="eng-field-label">Motif</div>
+          <div class="eng-box">
+            <div class="motif_sec">
+              <div class="motif_row" id="faceBlock">
+                <span class="emojiMotif">m</span>
+                <span class="emojiMotif">i</span>
+                <span class="emojiMotif">c</span>
+                <span class="emojiMotif">p</span>
+                <span class="emojiMotif">9</span>
+                <span class="emojiMotif">H</span>
+                <span class="emojiMotif">A</span>
+                <span class="emojiMotif">✡</span>
+                <span class="emojiMotif">♡</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="eng-actions">
+          <button class="btn btn-outline">Cancel</button>
+          <button class="btn btn-primary">Add</button>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+<div class="eng-note">
+  <div class="eng-note-title">Note</div>
+
+  <div class="eng-note-grid">
+    <div>
+      <div class="eng-note-item">
+        <span class="eng-note-bullet">✦</span>
+        <p>
+          The preview is only an approximation; the actual engraving
+          result may be slightly different than the preview.
+        </p>
+      </div>
+
+      <div class="eng-note-item">
+        <span class="eng-note-bullet">✦</span>
+        <p>
+          The colored square next to selected shade section is only
+          for representation; the actual product shade will be as per
+          the selection made by you.
+        </p>
+      </div>
+    </div>
+
+    <div>
+      <div class="eng-note-item">
+        <span class="eng-note-bullet">✦</span>
+        <p>
+          All customized or bespoke or <b>engraved products</b> are
+          final sale and <b>cannot</b> be <b>returned or exchanged.</b>
+        </p>
+      </div>
+
+      <div class="eng-note-item">
+        <span class="eng-note-bullet">✦</span>
+        <p>
+          <b>INR 100</b> engraving fee on orders <b>below INR 600</b>
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- JS: handles contenteditable input, motif insertion as visible motifs, counting, preview -->
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+  const fontTabs     = document.querySelectorAll('.eng-font-tab');
+  const motifs       = Array.from(document.querySelectorAll('.emojiMotif'));
+  const editable     = document.querySelector('.eng-bubble-input');
+  const lipText      = document.querySelector('.eng-lip-text');
+  const lipText2     = document.querySelector('.eng-lip-text-2');  // null if no second image
+
+  // Maximum characters allowed
+  const MAX_CHARS = 12;
+
+  // Which characters in your mapping are motif glyphs
+  const motifChars = new Set(['m','i','c','p','9','r','7','H','A','✡','♡']);
+
+  // ===== STATE: source of truth (never read from DOM) =====
+  let tokens = [];     // [{type:'char',ch:'N'}, {type:'motif',ch:'♡'}, ...]
+  let cursorPos = 0;   // index in tokens array where cursor sits
+
+  // ===== RENDER: build DOM from state =====
+  function render() {
+    editable.innerHTML = '';
+    for (const t of tokens) {
+      if (t.type === 'motif') {
+        const s = document.createElement('span');
+        s.className = 'Emotifontfamily';
+        s.contentEditable = 'false';
+        s.textContent = t.ch;
+        editable.appendChild(s);
+      } else {
+        editable.appendChild(document.createTextNode(t.ch));
+      }
+    }
+    // Trailing zero-width space so cursor can sit after last motif
+    const last = editable.lastChild;
+    if (!last || last.nodeType === Node.ELEMENT_NODE) {
+      editable.appendChild(document.createTextNode('\u200B'));
+    }
+    updateEmptyClass();
+    setCaret(cursorPos);
+    updateEngravingPreview();
+  }
+
+  // ===== SET CARET in DOM at a token index =====
+  function setCaret(pos) {
+    editable.focus();
+    let acc = 0;
+    const children = Array.from(editable.childNodes);
+    const range = document.createRange();
+
+    for (let i = 0; i < children.length; i++) {
+      const node = children[i];
+      if (node.nodeType === Node.TEXT_NODE) {
+        const raw = node.nodeValue || '';
+        const realLen = [...raw].filter(c => c !== '\u200B').length;
+        if (acc + realLen >= pos) {
+          let needed = pos - acc;
+          let offset = 0;
+          let counted = 0;
+          for (let j = 0; j < raw.length; j++) {
+            if (counted >= needed) break;
+            if (raw[j] !== '\u200B') counted++;
+            offset++;
+          }
+          range.setStart(node, offset);
+          range.collapse(true);
+          const sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(range);
+          return;
+        }
+        acc += realLen;
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        acc += 1;
+        if (acc >= pos) {
+          range.setStart(editable, i + 1);
+          range.collapse(true);
+          const sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(range);
+          return;
+        }
+      }
+    }
+    // Fallback: end
+    const lastChild = editable.lastChild;
+    if (lastChild && lastChild.nodeType === Node.TEXT_NODE) {
+      range.setStart(lastChild, lastChild.nodeValue.length);
+    } else {
+      range.selectNodeContents(editable);
+    }
+    range.collapse(false);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  // ===== READ CARET from DOM (only used on click/tap) =====
+  function readCaretFromDOM() {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return cursorPos;
+    const range = sel.getRangeAt(0);
+    const container = range.startContainer;
+    const offset = range.startOffset;
+
+    let count = 0;
+    const children = Array.from(editable.childNodes);
+
+    for (let i = 0; i < children.length; i++) {
+      const node = children[i];
+
+      // Caret is directly in editable between child nodes
+      if (container === editable && i === offset) return count;
+
+      if (node.nodeType === Node.TEXT_NODE) {
+        if (node === container) {
+          const before = (node.nodeValue || '').slice(0, offset);
+          return count + [...before].filter(c => c !== '\u200B').length;
+        }
+        count += [...(node.nodeValue || '')].filter(c => c !== '\u200B').length;
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        if (node === container || node.contains(container)) return count + 1;
+        count += 1;
+      }
+    }
+
+    if (container === editable) return count;
+    return Math.min(count, tokens.length);
+  }
+
+  // Update preview overlay
+  function updateEngravingPreview() {
+    let html = '';
+    for (const t of tokens) {
+      if (t.type === 'motif') {
+        html += '<span class="Emotifontfamily">'+ escapeHtml(t.ch) +'</span>';
+      } else {
+        const display = t.ch === ' ' ? '&nbsp;' : escapeHtml(t.ch.toUpperCase());
+        html += '<span class="plain-char">'+ display +'</span>';
+      }
+    }
+    const output = (html.length ? html : '\u00A0');
+    if (lipText) lipText.innerHTML = output;
+    if (lipText2) lipText2.innerHTML = output;
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function(m){
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m];
+    });
+  }
+
+  function updateEmptyClass() {
+    if (tokens.length === 0) {
+      editable.classList.add('empty');
+    } else {
+      editable.classList.remove('empty');
+    }
+  }
+
+  // ===== KEYBOARD: intercept ALL keys, update state, re-render =====
+  editable.addEventListener('keydown', function(e){
+    if (e.key === 'Enter') { e.preventDefault(); return false; }
+
+    // Backspace: delete token before cursor
+    if (e.key === 'Backspace') {
+      e.preventDefault();
+      if (cursorPos > 0 && tokens.length > 0) {
+        tokens.splice(cursorPos - 1, 1);
+        cursorPos--;
+        render();
+      }
+      return false;
+    }
+
+    // Delete: delete token after cursor
+    if (e.key === 'Delete') {
+      e.preventDefault();
+      if (cursorPos < tokens.length) {
+        tokens.splice(cursorPos, 1);
+        render();
+      }
+      return false;
+    }
+
+    // Arrow keys: move cursor without re-rendering
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      if (cursorPos > 0) { cursorPos--; setCaret(cursorPos); }
+      return false;
+    }
+    if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      if (cursorPos < tokens.length) { cursorPos++; setCaret(cursorPos); }
+      return false;
+    }
+    if (e.key === 'Home') {
+      e.preventDefault();
+      cursorPos = 0; setCaret(0);
+      return false;
+    }
+    if (e.key === 'End') {
+      e.preventDefault();
+      cursorPos = tokens.length; setCaret(cursorPos);
+      return false;
+    }
+
+    // Select all (Ctrl+A / Cmd+A): let browser handle
+    if ((e.ctrlKey || e.metaKey) && e.key === 'a') return;
+
+    // Printable character: insert at cursor
+    if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      if (tokens.length >= MAX_CHARS) return false;
+      tokens.splice(cursorPos, 0, {type: 'char', ch: e.key.toUpperCase()});
+      cursorPos++;
+      render();
+      return false;
+    }
+  });
+
+  // ===== PASTE: insert pasted text at cursor =====
+  editable.addEventListener('paste', function(e){
+    e.preventDefault();
+    const text = (e.clipboardData || window.clipboardData).getData('text') || '';
+    const chars = [...text].filter(c => c !== '\n' && c !== '\r');
+    for (const ch of chars) {
+      if (tokens.length >= MAX_CHARS) break;
+      tokens.splice(cursorPos, 0, {type: 'char', ch: ch.toUpperCase()});
+      cursorPos++;
+    }
+    render();
+  });
+
+  // ===== INPUT: safety net for mobile/IME (shouldn't normally fire) =====
+  editable.addEventListener('input', function(e){
+    // Re-read what's in the DOM, sync to state
+    const newTokens = [];
+    for (const node of Array.from(editable.childNodes)) {
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const txt = node.textContent || '';
+        for (const ch of [...txt]) {
+          if (ch === '\u200B') continue;
+          newTokens.push({type: 'motif', ch});
+        }
+      } else if (node.nodeType === Node.TEXT_NODE) {
+        const txt = node.nodeValue || '';
+        for (const ch of [...txt]) {
+          if (ch === '\n' || ch === '\r' || ch === '\u200B') continue;
+          newTokens.push({type: 'char', ch: ch.toUpperCase()});
+        }
+      }
+    }
+    // Enforce MAX_CHARS
+    tokens = newTokens.slice(0, MAX_CHARS);
+    cursorPos = Math.min(readCaretFromDOM(), tokens.length);
+    render();
+  });
+
+  // ===== CLICK/TAP: reposition cursor from DOM selection =====
+  editable.addEventListener('mouseup', function(){
+    setTimeout(function(){
+      cursorPos = readCaretFromDOM();
+    }, 0);
+  });
+  editable.addEventListener('touchend', function(){
+    setTimeout(function(){
+      cursorPos = readCaretFromDOM();
+    }, 0);
+  });
+
+  // ===== MOTIF CLICK: insert motif at cursor =====
+  motifs.forEach(motif => {
+    motif.addEventListener('click', () => {
+      motifs.forEach(m => m.classList.remove('is-selected'));
+      motif.classList.add('is-selected');
+      const ch = (motif.textContent || '').trim();
+      if (!ch) return;
+      if (tokens.length >= MAX_CHARS) return;
+      tokens.splice(cursorPos, 0, {type: 'motif', ch});
+      cursorPos++;
+      render();
+    });
+  });
+
+  // Font tab — apply to both overlays
+  fontTabs.forEach(tab=>{
+    tab.addEventListener('click',()=>{
+      fontTabs.forEach(t=>t.classList.remove('is-selected'));
+      tab.classList.add('is-selected');
+
+      const txt = (tab.textContent || "").trim().toLowerCase();
+      let fontClass = "";
+      if (txt.includes("futura")) {
+        fontClass = "font-futura";
+      } else if (txt.includes("rockwell")) {
+        fontClass = "font-rockwell";
+      } else if (txt.includes("avant")) {
+        fontClass = "font-avant";
+      } else {
+        if (txt.includes("english") || txt.includes("script")) {
+          fontClass = "font-english-script";
+        } else {
+          fontClass = "";
+        }
+      }
+
+      const allFontClasses = ["font-futura","font-rockwell","font-avant","font-english-script"];
+
+      editable.classList.remove(...allFontClasses);
+      if (lipText) lipText.classList.remove(...allFontClasses);
+      if (lipText2) lipText2.classList.remove(...allFontClasses);
+
+      if (fontClass) {
+        editable.classList.add(fontClass);
+        if (lipText) lipText.classList.add(fontClass);
+        if (lipText2) lipText2.classList.add(fontClass);
+      }
+      render();
+    });
+  });
+
+  // Initial state: empty
+  tokens = [];
+  cursorPos = 0;
+  render();
+});
+</script>
+
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+  function getCheckedShadeRadio() {
+    return document.querySelector(
+      '.product input[type="radio"][name^="globo-option"]:checked'
+    );
+  }
+
+  function getLabelFromRadio(radio) {
+    if (!radio || !radio.id) return null;
+    return document.querySelector('label[for="' + radio.id + '"]');
+  }
+
+  function extractRGB(bg) {
+    if (!bg) return null;
+    const match = bg.match(/rgb\([^)]+\)/);
+    return match ? match[0] : null;
+  }
+
+  function getShadeName() {
+    const input = document.querySelector('input[name="id"]');
+    if (!input) return null;
+
+    const variants = {{ product.variants | json }};
+    const variant = variants.find(v => v.id == input.value);
+    if (!variant) return null;
+
+    const options = {{ product.options | json }};
+    const index = options.findIndex(o => o.toLowerCase() === 'shade');
+    return index > -1 ? variant.options[index] : null;
+  }
+
+  function syncShadeToEngravingModal() {
+    const modal = document.getElementById('engrave-modal-backdrop');
+    if (!modal || modal.style.display === 'none') return;
+
+    const swatch = modal.querySelector('.eng-shade-swatch');
+    const text   = modal.querySelector('.eng-shade-pill span:last-child');
+    if (!swatch || !text) return;
+
+    const shadeName = getShadeName();
+    if (shadeName) text.textContent = shadeName;
+
+    const radio = getCheckedShadeRadio();
+    const label = getLabelFromRadio(radio);
+    if (!label) return;
+
+    const bg = label.style.background;
+    const rgb = extractRGB(bg);
+    if (!rgb) return;
+
+    swatch.style.background = rgb;
+  }
+
+  document.addEventListener('click', function (e) {
+    if (
+      e.target &&
+      e.target.textContent &&
+      e.target.textContent.toLowerCase().includes('engrave')
+    ) {
+      setTimeout(syncShadeToEngravingModal, 200);
+    }
+  });
+
+});
+</script>
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+  const engraveBase = document.querySelector('.engrave-base');
+  if (engraveBase && engraveBase.src === "") {
+    engraveBase.src = engraveBase.getAttribute("data-src");
+  }
+});
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+  const engraveAddBtn = document.querySelector('#engrave-modal-backdrop .btn-primary');
+  if (!engraveAddBtn) return;
+
+  const variants = {{ product.variants | json }};
+
+  function getSelectedVariant() {
+    const variantInput = document.querySelector('#{{ product_form_id }} input[name="id"]');
+    if (!variantInput || !variantInput.value) return null;
+    return variants.find(v => v.id == variantInput.value);
+  }
+
+  function updateEngraveAddButtonState() {
+    const variant = getSelectedVariant();
+    if (!variant) return;
+
+    if (variant.available === false) {
+      engraveAddBtn.disabled = true;
+      engraveAddBtn.style.opacity = '0.5';
+      engraveAddBtn.style.cursor = 'not-allowed';
+      engraveAddBtn.textContent = 'Out of Stock';
+    } else {
+      engraveAddBtn.disabled = false;
+      engraveAddBtn.style.opacity = '1';
+      engraveAddBtn.style.cursor = 'pointer';
+      engraveAddBtn.textContent = 'Add';
+    }
+  }
+
+  document.addEventListener('click', function (e) {
+    if (
+      e.target &&
+      e.target.textContent &&
+      e.target.textContent.toLowerCase().includes('engrave')
+    ) {
+      setTimeout(updateEngraveAddButtonState, 200);
+    }
+  });
+
+  document.addEventListener('change', function (e) {
+    if (e.target.matches('input[type="radio"][name^="globo-option"]')) {
+      setTimeout(updateEngraveAddButtonState, 150);
+    }
+  });
+
+  // ===== GENERATE PREVIEW DATA FUNCTION =====
+  function generateEngravingPreviewData() {
+    const editable = document.querySelector('.eng-bubble-input');
+    const fontEl = document.querySelector('.eng-font-tab.is-selected');
+    const font = fontEl ? fontEl.innerText.trim() : 'Futura-Thin';
+    const productImg = document.querySelector('.engrave-base');
+    const productImg2 = document.querySelector('.eng-second-image-wrap img');
+    const shadeText = document.querySelector('#engrave-modal-backdrop .eng-shade-pill span:last-child');
+    const shadeName = shadeText ? shadeText.textContent.trim() : 'N/A';
+    
+    let previewData = {
+      text: '',
+      characters: [],
+      font: font,
+      productImage: productImg ? productImg.src : '',
+      productImage2: productImg2 ? productImg2.src : '',
+      shade: shadeName,
+      textTop: '{{ text_top }}',
+      textLeft: '{{ text_left }}',
+      textSize: '{{ text_size }}',
+      motifMargin: '{{ motif_margin }}',
+      textTop2: '{{ text_top_2 }}',
+      textLeft2: '{{ text_left_2 }}',
+      textSize2: '{{ text_size_2 }}',
+      motifMargin2: '{{ motif_margin_2 }}',
+      engravingTextOn: '{{ engrave_text_on }}',
+      hasSecondImage: {{ has_second_image }},
+      image2Width: '{{ image_2_width }}',
+      timestamp: new Date().toISOString(),
+      version: '3.0'
+    };
+    
+    let charIndex = 0;
+    editable.childNodes.forEach(node => {
+      if (node.nodeType === Node.ELEMENT_NODE && node.classList.contains('Emotifontfamily')) {
+        const motifChar = node.textContent.trim();
+        previewData.text += motifChar;
+        previewData.characters.push({
+          char: motifChar, 
+          isMotif: true,
+          index: charIndex++
+        });
+      } else if (node.nodeType === Node.TEXT_NODE) {
+        const chars = node.nodeValue.toUpperCase();
+        for (const ch of chars) {
+          if (ch !== '\n' && ch !== '\r' && ch !== '\u200B') {
+            previewData.text += ch;
+            previewData.characters.push({
+              char: ch, 
+              isMotif: false,
+              index: charIndex++
+            });
+          }
+        }
+      }
+    });
+    
+    return JSON.stringify(previewData);
+  }
+
+  /* ===== ADD TO CART HANDLER ===== */
+  engraveAddBtn.addEventListener('click', function () {
+
+    if (engraveAddBtn.disabled) return;
+
+    const productForm = document.getElementById('{{ product_form_id }}');
+    if (!productForm) return;
+
+    const variant = getSelectedVariant();
+    if (!variant || variant.available === false) return;
+
+    const editable = document.querySelector('.eng-bubble-input');
+    if (!editable) return;
+
+    // ===== BUILD ENGRAVING TEXT (TYPED LETTERS ONLY) =====
+    let engravingText = '';
+    editable.childNodes.forEach(node => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        engravingText += node.nodeValue.toUpperCase().replace(/\u200B/g, '');
+      }
+    });
+    engravingText = engravingText.trim();
+
+    // ===== BUILD FULL STRING (TEXT + MOTIFS COMBINED) =====
+    let fullEngravingString = '';
+    editable.childNodes.forEach(node => {
+      if (
+        node.nodeType === Node.ELEMENT_NODE &&
+        node.classList.contains('Emotifontfamily')
+      ) {
+        fullEngravingString += node.textContent.trim();
+      } else if (node.nodeType === Node.TEXT_NODE) {
+        fullEngravingString += node.nodeValue.toUpperCase().replace(/\u200B/g, '');
+      }
+    });
+    fullEngravingString = fullEngravingString.trim();
+
+    // ===== EXTRACT MOTIFS =====
+    const motifs = [];
+    editable.childNodes.forEach(node => {
+      if (
+        node.nodeType === Node.ELEMENT_NODE &&
+        node.classList.contains('Emotifontfamily')
+      ) {
+        const motifChar = node.textContent.trim();
+        if (motifChar) {
+          motifs.push(motifChar);
+        }
+      }
+    });
+
+    // ===== VALIDATION =====
+    if (!fullEngravingString) {
+      alert('Please enter engraving text or select motifs');
+      return;
+    }
+
+    // ===== GET FONT =====
+    const fontEl = document.querySelector('.eng-font-tab.is-selected');
+    const engravingFont = fontEl ? fontEl.innerText.trim() : 'Default';
+
+    // ===== GET SHADE =====
+    const shadeText = document.querySelector('#engrave-modal-backdrop .eng-shade-pill span:last-child');
+    const shadeName = shadeText ? shadeText.textContent.trim() : 'N/A';
+
+    /* ===== REMOVE OLD PROPERTIES ===== */
+    productForm.querySelectorAll('[data-engraving]').forEach(el => el.remove());
+
+    /* ===== ADD LINE ITEM PROPERTIES ===== */
+    function addProp(label, value) {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = `properties[${label}]`;
+      input.value = value;
+      input.setAttribute('data-engraving', 'true');
+      productForm.appendChild(input);
+    }
+
+    addProp('Engraving', 'Yes');
+    addProp('Engraving Text', fullEngravingString);
+    addProp('Engraving Font', engravingFont);
+    addProp('Shade', shadeName);
+    if (motifs.length > 0) {
+      addProp('Motifs', motifs.join(','));
+    }
+    
+    // ===== CRITICAL: ADD UNDERSCORE TO HIDE FROM CART/CHECKOUT =====
+    const previewData = generateEngravingPreviewData();
+    addProp('_Preview Data', previewData);
+    
+    /* ===== SUBMIT FORM ===== */
+    productForm.submit();
+  });
+
+});
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const engraveAddBtn = document.querySelector('#engrave-modal-backdrop .btn-primary');
+  if (!engraveAddBtn) return;
+
+  // Force quantity to 1 before engraving submit
+  engraveAddBtn.addEventListener('click', function () {
+    const qtyInput = document.querySelector('input[name="quantity"]');
+    if (qtyInput) qtyInput.value = 1;
+  }, true); // capture phase, runs before your existing Add handler
+});
+</script>
+
+    </div> <!-- end engraving-modal -->
+  </div> <!-- end engrave-modal-inner -->
+</div> <!-- end engrave-modal-backdrop -->
+
+{% endif %}
+{% comment %} ^^^ END: only render engraving for listed products ^^^ {% endcomment %}
+
+
+{% schema %}
+{
+  "name": "t:sections.main_product.name",
+  "class": "shopify-section--main-product",
+  "tag": "section",
+  "settings": [
+    {
+      "type": "color_scheme",
+      "id": "color_scheme",
+      "label": "t:global.colors.scheme",
+      "default": "scheme-1"
+    },
+    {
+      "type": "select",
+      "id": "container_size",
+      "label": "t:global.sizes.section_width",
+      "options": [
+        {
+          "value": "lg",
+          "label": "t:global.sizes.large"
+        },
+        {
+          "value": "xl",
+          "label": "t:global.sizes.x_large"
+        },
+        {
+          "value": "full",
+          "label": "t:global.sizes.full_width"
+        }
+      ],
+      "default": "lg"
+    },
+    {
+      "type": "range",
+      "id": "product_info_size",
+      "label": "t:sections.main_product.product_info_size",
+      "info": "t:sections.main_product.product_info_size_info",
+      "min": 30,
+      "max": 60,
+      "step": 1,
+      "unit": "%",
+      "default": 35
+    },
+    {
+      "type": "checkbox",
+      "id": "show_sticky_add_to_cart",
+      "label": "t:sections.main_product.show_sticky_add_to_cart",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "center_basic_info",
+      "label": "t:sections.main_product.center_basic_info",
+      "info": "t:sections.main_product.center_basic_info_info",
+      "default": false
+    },
+    {
+      "type": "header",
+      "content": "t:sections.main_product.media_category",
+      "info": "t:sections.main_product.media_category_info"
+    },
+    {
+      "type": "select",
+      "id": "desktop_media_layout",
+      "label": "t:sections.main_product.desktop_media_layout",
+      "options": [
+        {
+          "value": "grid",
+          "label": "t:sections.main_product.desktop_media_layout_options.grid"
+        },
+        {
+          "value": "grid_2x",
+          "label": "t:sections.main_product.desktop_media_layout_options.grid_2x"
+        },
+        {
+          "value": "grid_2x_highlighted",
+          "label": "t:sections.main_product.desktop_media_layout_options.grid_2x_highlighted"
+        },
+        {
+          "value": "carousel_thumbnails_left",
+          "label": "t:sections.main_product.desktop_media_layout_options.carousel_thumbnails_left"
+        },
+        {
+          "value": "carousel_thumbnails_bottom",
+          "label": "t:sections.main_product.desktop_media_layout_options.carousel_thumbnails_bottom"
+        },
+        {
+          "value": "carousel_dots",
+          "label": "t:sections.main_product.desktop_media_layout_options.carousel_dots"
+        }
+      ],
+      "default": "grid"
+    },
+    {
+      "type": "range",
+      "id": "desktop_media_grid_gap",
+      "min": 0,
+      "max": 50,
+      "unit": "px",
+      "label": "t:sections.main_product.desktop_media_grid_gap",
+      "default": 30
+    },
+    {
+      "type": "select",
+      "id": "mobile_controls",
+      "label": "t:sections.main_product.mobile_controls",
+      "options": [
+        {
+          "value": "dots",
+          "label": "t:sections.main_product.mobile_controls_options.dots"
+        },
+        {
+          "value": "thumbnails",
+          "label": "t:sections.main_product.mobile_controls_options.thumbnails"
+        },
+        {
+          "value": "free_scroll",
+          "label": "t:sections.main_product.mobile_controls_options.free_scroll"
+        }
+      ],
+      "default": "dots"
+    },
+    {
+      "type": "checkbox",
+      "id": "enable_media_autoplay",
+      "label": "t:sections.main_product.enable_media_autoplay",
+      "info": "t:sections.main_product.enable_media_autoplay_info",
+      "default": false
+    },
+    {
+      "type": "checkbox",
+      "id": "enable_video_looping",
+      "label": "t:sections.main_product.enable_video_looping",
+      "default": true
+    },
+    {
+      "type": "header",
+      "content": "t:sections.main_product.image_zoom_category",
+      "info": "t:sections.main_product.image_zoom_category_info"
+    },
+    {
+      "type": "checkbox",
+      "id": "enable_image_zoom",
+      "label": "t:sections.main_product.image_zoom_enable",
+      "default": true
+    },
+    {
+      "type": "range",
+      "id": "max_image_zoom_level",
+      "min": 1,
+      "max": 4,
+      "step": 0.5,
+      "label": "t:sections.main_product.image_zoom_max_level",
+      "default": 3
+    }
+  ],
+  "blocks": [
+    {
+      "type": "@app"
+    },
+    {
+      "type": "vendor",
+      "name": "t:sections.main_product.blocks.vendor.name",
+      "limit": 1
+    },
+    {
+      "type": "title",
+      "name": "t:sections.main_product.blocks.title.name",
+      "limit": 1,
+      "settings": [
+        {
+          "type": "select",
+          "id": "heading_tag",
+          "label": "t:global.text.style",
+          "options": [
+            {
+              "value": "h1",
+              "label": "H1"
+            },
+            {
+              "value": "h2",
+              "label": "H2"
+            },
+            {
+              "value": "h3",
+              "label": "H3"
+            },
+            {
+              "value": "h4",
+              "label": "H4"
+            },
+            {
+              "value": "h5",
+              "label": "H5"
+            },
+            {
+              "value": "h6",
+              "label": "H6"
+            }
+          ],
+          "default": "h3"
+        }
+      ]
+    },
+    {
+      "type": "sku",
+      "name": "t:sections.main_product.blocks.sku.name",
+      "limit": 1
+    },
+    {
+      "type": "badges",
+      "name": "t:sections.main_product.blocks.badges.name",
+      "limit": 1,
+      "settings": [
+        {
+          "type": "paragraph",
+          "content": "t:sections.main_product.blocks.badges.instructions"
+        }
+      ]
+    },
+    {
+      "type": "price",
+      "name": "t:sections.main_product.blocks.price.name",
+      "limit": 1,
+      "settings": [
+        {
+          "type": "checkbox",
+          "id": "show_taxes_notice",
+          "label": "t:sections.main_product.blocks.price.show_taxes_notice",
+          "default": false
+        }
+      ]
+    },
+    {
+      "type": "rating",
+      "name": "t:sections.main_product.blocks.rating.name",
+      "limit": 1,
+      "settings": [
+        {
+          "type": "paragraph",
+          "content": "t:sections.main_product.blocks.rating.instructions"
+        },
+        {
+          "type": "checkbox",
+          "id": "show_empty",
+          "label": "t:sections.main_product.blocks.rating.show_if_no_reviews",
+          "default": true
+        },
+        {
+          "type": "select",
+          "id": "rating_mode",
+          "label": "t:sections.main_product.blocks.rating.show_product_rating_as",
+          "options": [
+            {
+              "value": "rating",
+              "label": "t:sections.main_product.blocks.rating.show_product_rating_as_options.rating"
+            },
+            {
+              "value": "count",
+              "label": "t:sections.main_product.blocks.rating.show_product_rating_as_options.count"
+            }
+          ],
+          "default": "rating"
+        }
+      ]
+    },
+    {
+      "type": "payment_terms",
+      "name": "t:sections.main_product.blocks.payment_terms.name",
+      "limit": 1,
+      "settings": [
+        {
+          "type": "paragraph",
+          "content": "t:sections.main_product.blocks.payment_terms.instructions"
+        }
+      ]
+    },
+    {
+      "type": "separator",
+      "name": "t:sections.main_product.blocks.separator.name"
+    },
+    {
+      "type": "description",
+      "name": "t:sections.main_product.blocks.description.name",
+      "limit": 1,
+      "settings": [
+        {
+          "type": "checkbox",
+          "id": "collapse_content",
+          "label": "t:sections.main_product.blocks.description.collapse_content",
+          "default": false
+        },
+        {
+          "type": "checkbox",
+          "id": "show_below_gallery",
+          "label": "t:sections.main_product.blocks.description.show_below_gallery",
+          "default": false
+        }
+      ]
+    },
+    {
+      "type": "variant_picker",
+      "name": "t:sections.main_product.blocks.variant_picker.name",
+      "limit": 1,
+      "settings": [
+        {
+          "type": "checkbox",
+          "id": "hide_sold_out_variants",
+          "label": "t:sections.main_product.blocks.variant_picker.hide_sold_out_variants",
+          "default": false
+        },
+        {
+          "type": "select",
+          "id": "selector_style",
+          "label": "t:sections.main_product.blocks.variant_picker.selector_style",
+          "options": [
+            {
+              "value": "block",
+              "label": "t:sections.main_product.blocks.variant_picker.selector_style_options.block"
+            },
+            {
+              "value": "dropdown",
+              "label": "t:sections.main_product.blocks.variant_picker.selector_style_options.dropdown"
+            }
+          ],
+          "default": "block"
+        },
+        {
+          "type": "select",
+          "id": "swatch_selector_style",
+          "label": "t:sections.main_product.blocks.variant_picker.swatch_selector_style",
+          "info": "t:sections.main_product.blocks.variant_picker.swatch_selector_style_info",
+          "options": [
+            {
+              "value": "swatch",
+              "label": "t:sections.main_product.blocks.variant_picker.swatch_selector_style_options.swatch"
+            },
+            {
+              "value": "block_swatch",
+              "label": "t:sections.main_product.blocks.variant_picker.swatch_selector_style_options.block_swatch"
+            },
+            {
+              "value": "none",
+              "label": "t:sections.main_product.blocks.variant_picker.swatch_selector_style_options.none"
+            }
+          ],
+          "default": "swatch"
+        },
+        {
+          "type": "text",
+          "id": "variant_image_options",
+          "label": "t:sections.main_product.blocks.variant_picker.variant_image_options",
+          "info": "t:sections.main_product.blocks.variant_picker.variant_image_options_info"
+        },
+        {
+          "type": "page",
+          "id": "size_chart_page",
+          "label": "t:sections.main_product.blocks.variant_picker.size_chart_page",
+          "info": "t:sections.main_product.blocks.variant_picker.size_chart_page_info"
+        }
+      ]
+    },
+    {
+      "type": "product_variations",
+      "name": "t:sections.main_product.blocks.product_variations.name",
+      "settings": [
+        {
+          "type": "paragraph",
+          "content": "t:sections.main_product.blocks.product_variations.instructions"
+        },
+        {
+          "type": "text",
+          "id": "option_name",
+          "label": "t:sections.main_product.blocks.product_variations.option_name",
+          "placeholder": "t:sections.main_product.blocks.product_variations.option_name_placeholder"
+        },
+        {
+          "type": "text",
+          "id": "option_value_metafield",
+          "label": "t:sections.main_product.blocks.product_variations.option_value_metafield",
+          "info": "t:sections.main_product.blocks.product_variations.option_value_metafield_info"
+        },
+        {
+          "type": "product_list",
+          "id": "products",
+          "label": "t:sections.main_product.blocks.product_variations.product_list",
+          "info": "t:sections.main_product.blocks.product_variations.product_list_info"
+        },
+        {
+          "type": "select",
+          "id": "selector_style",
+          "label": "t:sections.main_product.blocks.variant_picker.selector_style",
+          "options": [
+            {
+              "value": "block",
+              "label": "t:sections.main_product.blocks.variant_picker.selector_style_options.block"
+            },
+            {
+              "value": "block_swatch",
+              "label": "t:sections.main_product.blocks.variant_picker.swatch_selector_style_options.block_swatch"
+            },
+            {
+              "value": "swatch",
+              "label": "t:sections.main_product.blocks.variant_picker.swatch_selector_style_options.swatch"
+            },
+            {
+              "value": "variant_image",
+              "label": "t:sections.main_product.blocks.variant_picker.selector_style_options.variant_image"
+            }
+          ],
+          "default": "swatch"
+        }
+      ]
+    },
+    {
+      "type": "line_item_property",
+      "name": "t:sections.main_product.blocks.line_item_property.name",
+      "settings": [
+        {
+          "type": "paragraph",
+          "content": "t:sections.main_product.blocks.line_item_property.line_item_info"
+        },
+        {
+          "type": "text",
+          "id": "label",
+          "label": "t:sections.main_product.blocks.line_item_property.line_item_label",
+          "default": "Your label"
+        },
+        {
+          "type": "select",
+          "id": "type",
+          "label": "t:sections.main_product.blocks.line_item_property.line_item_type",
+          "options": [
+            {
+              "value": "text",
+              "label": "t:sections.main_product.blocks.line_item_property.line_item_type_options.text"
+            },
+            {
+              "value": "checkbox",
+              "label": "t:sections.main_product.blocks.line_item_property.line_item_type_options.checkbox"
+            },
+            {
+              "value": "dropdown",
+              "label": "t:sections.main_product.blocks.line_item_property.line_item_type_options.dropdown"
+            }
+          ],
+          "default": "text"
+        },
+        {
+          "type": "checkbox",
+          "id": "required",
+          "label": "t:sections.main_product.blocks.line_item_property.required",
+          "info": "t:sections.main_product.blocks.line_item_property.required_info",
+          "default": false
+        },
+        {
+          "type": "header",
+          "content": "t:sections.main_product.blocks.line_item_property.text_type_category",
+          "visible_if": "{{ block.settings.type == 'text' }}"
+        },
+        {
+          "type": "checkbox",
+          "id": "allow_long_text",
+          "label": "t:sections.main_product.blocks.line_item_property.text_type_allow_long_text",
+          "default": false,
+          "visible_if": "{{ block.settings.type == 'text' }}"
+        },
+        {
+          "type": "number",
+          "id": "max_length",
+          "label": "t:sections.main_product.blocks.line_item_property.text_type_max_length",
+          "visible_if": "{{ block.settings.type == 'text' }}"
+        },
+        {
+          "type": "header",
+          "content": "t:sections.main_product.blocks.line_item_property.checkbox_type_category",
+          "visible_if": "{{ block.settings.type == 'checkbox' }}"
+        },
+        {
+          "type": "text",
+          "id": "checkbox_value",
+          "label": "t:sections.main_product.blocks.line_item_property.checkbox_value",
+          "info": "t:sections.main_product.blocks.line_item_property.checkbox_value_info",
+          "default": "Yes",
+          "visible_if": "{{ block.settings.type == 'checkbox' }}"
+        },
+        {
+          "type": "header",
+          "content": "t:sections.main_product.blocks.line_item_property.dropdown_type_category",
+          "visible_if": "{{ block.settings.type == 'dropdown' }}"
+        },
+        {
+          "type": "text",
+          "id": "select_values",
+          "label": "t:sections.main_product.blocks.line_item_property.dropdown_values",
+          "info": "t:sections.main_product.blocks.line_item_property.dropdown_values_info",
+          "default": "Value 1,Value 2,Value 3",
+          "visible_if": "{{ block.settings.type == 'dropdown' }}"
+        }
+      ]
+    },
+    {
+      "type": "quantity_selector",
+      "name": "t:sections.main_product.blocks.quantity_selector.name",
+      "limit": 1,
+      "settings": [
+        {
+          "type": "paragraph",
+          "content": "t:sections.main_product.blocks.quantity_selector.instructions"
+        }
+      ]
+    },
+    {
+      "type": "volume_pricing",
+      "name": "t:sections.main_product.blocks.volume_pricing.name",
+      "limit": 1,
+      "settings": [
+        {
+          "type": "paragraph",
+          "content": "t:sections.main_product.blocks.volume_pricing.instructions"
+        }
+      ]
+    },
+    {
+      "type": "inventory",
+      "name": "t:sections.main_product.blocks.inventory.name",
+      "limit": 1,
+      "settings": [
+        {
+          "type": "checkbox",
+          "id": "show_in_stock_quantity",
+          "label": "t:sections.main_product.blocks.inventory.show_in_stock_quantity",
+          "default": true
+        },
+        {
+          "type": "range",
+          "id": "low_inventory_threshold",
+          "label": "t:sections.main_product.blocks.inventory.low_inventory_threshold",
+          "info": "t:sections.main_product.blocks.inventory.low_inventory_threshold_info",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 0
+        },
+        {
+          "type": "checkbox",
+          "id": "show_progress_bar",
+          "label": "t:sections.main_product.blocks.inventory.show_progress_bar",
+          "default": true
+        },
+        {
+          "type": "number",
+          "id": "progress_bar_max_value",
+          "label": "t:sections.main_product.blocks.inventory.progress_bar_max_value",
+          "info": "t:sections.main_product.blocks.inventory.progress_bar_max_value_info",
+          "default": 50
+        }
+      ]
+    },
+    {
+      "type": "buy_buttons",
+      "name": "t:sections.main_product.blocks.buy_buttons.name",
+      "limit": 1,
+      "settings": [
+        {
+          "type": "checkbox",
+          "id": "show_payment_button",
+          "label": "t:sections.main_product.blocks.buy_buttons.show_payment_button",
+          "info": "t:sections.main_product.blocks.buy_buttons.show_payment_button_info",
+          "default": true
+        },
+        {
+          "type": "checkbox",
+          "id": "show_gift_card_recipient",
+          "label": "t:sections.main_product.blocks.buy_buttons.show_gift_card_recipient",
+          "info": "t:sections.main_product.blocks.buy_buttons.show_gift_card_recipient_info",
+          "default": true
+        },
+        {
+          "type": "color",
+          "id": "atc_button_background",
+          "label": "t:sections.main_product.blocks.buy_buttons.add_to_cart_background"
+        },
+        {
+          "type": "color",
+          "id": "atc_button_text_color",
+          "label": "t:sections.main_product.blocks.buy_buttons.add_to_cart_text_color"
+        },
+        {
+          "type": "color",
+          "id": "payment_button_background",
+          "label": "t:sections.main_product.blocks.buy_buttons.payment_button_background"
+        },
+        {
+          "type": "color",
+          "id": "payment_button_text_color",
+          "label": "t:sections.main_product.blocks.buy_buttons.payment_button_text_color"
+        }
+      ]
+    },
+    {
+      "type": "pickup_availability",
+      "name": "t:sections.main_product.blocks.pickup_availability.name",
+      "limit": 1,
+      "settings": [
+        {
+          "type": "paragraph",
+          "content": "t:sections.main_product.blocks.pickup_availability.instructions"
+        }
+      ]
+    },
+    {
+      "type": "complementary_products",
+      "name": "t:sections.main_product.blocks.complementary_products.name",
+      "limit": 1,
+      "settings": [
+        {
+          "type": "paragraph",
+          "content": "t:sections.main_product.blocks.complementary_products.instructions"
+        },
+        {
+          "type": "inline_richtext",
+          "id": "title",
+          "label": "t:global.text.heading",
+          "default": "Pairs well with"
+        },
+        {
+          "type": "range",
+          "id": "products_count",
+          "label": "t:sections.main_product.blocks.complementary_products.products_count",
+          "min": 1,
+          "max": 10,
+          "default": 2
+        },
+        {
+          "type": "checkbox",
+          "id": "show_below_gallery",
+          "label": "t:sections.main_product.blocks.complementary_products.show_below_gallery",
+          "default": true
+        },
+        {
+          "type": "checkbox",
+          "id": "stack_products",
+          "label": "t:sections.main_product.blocks.complementary_products.stack_products",
+          "default": false
+        },
+        {
+          "type": "checkbox",
+          "id": "show_quick_buy",
+          "label": "t:sections.main_product.blocks.complementary_products.show_quick_buy",
+          "default": true
+        }
+      ]
+    },
+    {
+      "type": "offers",
+      "name": "t:sections.main_product.blocks.offers.name",
+      "settings": [
+        {
+          "type": "checkbox",
+          "id": "stack_offers",
+          "label": "t:sections.main_product.blocks.offers.stack_offers",
+          "default": false
+        },
+        {
+          "type": "header",
+          "content": "t:sections.main_product.blocks.offers.offer_1_category"
+        },
+        {
+          "type": "inline_richtext",
+          "id": "offer_1_title",
+          "label": "t:sections.main_product.blocks.offers.offer_title",
+          "default": "Write something"
+        },
+        {
+          "type": "richtext",
+          "id": "offer_1_content",
+          "label": "t:sections.main_product.blocks.offers.offer_content",
+          "default": "<p>Share some temporary offers to your customers.</p>"
+        },
+        {
+          "type": "header",
+          "content": "t:sections.main_product.blocks.offers.offer_2_category"
+        },
+        {
+          "type": "inline_richtext",
+          "id": "offer_2_title",
+          "label": "t:sections.main_product.blocks.offers.offer_title"
+        },
+        {
+          "type": "richtext",
+          "id": "offer_2_content",
+          "label": "t:sections.main_product.blocks.offers.offer_content"
+        },
+        {
+          "type": "header",
+          "content": "t:sections.main_product.blocks.offers.offer_3_category"
+        },
+        {
+          "type": "inline_richtext",
+          "id": "offer_3_title",
+          "label": "t:sections.main_product.blocks.offers.offer_title"
+        },
+        {
+          "type": "richtext",
+          "id": "offer_3_content",
+          "label": "t:sections.main_product.blocks.offers.offer_content"
+        },
+        {
+          "type": "header",
+          "content": "t:global.colors.category"
+        },
+        {
+          "type": "color",
+          "id": "background",
+          "label": "t:global.colors.background"
+        },
+        {
+          "type": "color",
+          "id": "text_color",
+          "label": "t:global.colors.text"
+        },
+        {
+          "type": "color",
+          "id": "border_color",
+          "label": "t:global.colors.border"
+        }
+      ]
+    },
+    {
+      "type": "feature_with_icon",
+      "name": "t:sections.main_product.blocks.feature_with_icon.name",
+      "settings": [
+        {
+          "type": "inline_richtext",
+          "id": "text",
+          "label": "t:global.text.text",
+          "default": "Feature"
+        },
+        {
+          "type": "url",
+          "id": "link",
+          "label": "t:global.text.link"
+        },
+        {
+          "type": "select",
+          "id": "icon",
+          "label": "t:global.icons.icon",
+          "options": [
+            {
+              "value": "none",
+              "label": "t:global.icons.none"
+            },
+            {
+              "value": "picto-award-gift",
+              "label": "t:global.icons.award_gift",
+              "group": "t:global.icons.shop_category"
+            },
+            {
+              "value": "picto-bag-handle",
+              "label": "t:global.icons.bag_handle",
+              "group": "t:global.icons.shop_category"
+            },
+            {
+              "value": "picto-building",
+              "label": "t:global.icons.building",
+              "group": "t:global.icons.shop_category"
+            },
+            {
+              "value": "picto-coupon",
+              "label": "t:global.icons.coupon",
+              "group": "t:global.icons.shop_category"
+            },
+            {
+              "value": "picto-gift",
+              "label": "t:global.icons.gift",
+              "group": "t:global.icons.shop_category"
+            },
+            {
+              "value": "picto-info",
+              "label": "t:global.icons.info",
+              "group": "t:global.icons.shop_category"
+            },
+            {
+              "value": "picto-love",
+              "label": "t:global.icons.love",
+              "group": "t:global.icons.shop_category"
+            },
+            {
+              "value": "picto-percent",
+              "label": "t:global.icons.percent",
+              "group": "t:global.icons.shop_category"
+            },
+            {
+              "value": "picto-star",
+              "label": "t:global.icons.star",
+              "group": "t:global.icons.shop_category"
+            },
+            {
+              "value": "picto-box",
+              "label": "t:global.icons.box",
+              "group": "t:global.icons.shipping_category"
+            },
+            {
+              "value": "picto-delivery-truck",
+              "label": "t:global.icons.delivery_truck",
+              "group": "t:global.icons.shipping_category"
+            },
+            {
+              "value": "picto-pin",
+              "label": "t:global.icons.pin",
+              "group": "t:global.icons.shipping_category"
+            },
+            {
+              "value": "picto-plane",
+              "label": "t:global.icons.plane",
+              "group": "t:global.icons.shipping_category"
+            },
+            {
+              "value": "picto-return",
+              "label": "t:global.icons.return",
+              "group": "t:global.icons.shipping_category"
+            },
+            {
+              "value": "picto-credit-card",
+              "label": "t:global.icons.credit_card",
+              "group": "t:global.icons.payment_and_security_category"
+            },
+            {
+              "value": "picto-lock",
+              "label": "t:global.icons.lock",
+              "group": "t:global.icons.payment_and_security_category"
+            },
+            {
+              "value": "picto-money",
+              "label": "t:global.icons.money",
+              "group": "t:global.icons.payment_and_security_category"
+            },
+            {
+              "value": "picto-secure-profile",
+              "label": "t:global.icons.secure_profile",
+              "group": "t:global.icons.payment_and_security_category"
+            },
+            {
+              "value": "picto-shield",
+              "label": "t:global.icons.shield",
+              "group": "t:global.icons.payment_and_security_category"
+            },
+            {
+              "value": "picto-earth",
+              "label": "t:global.icons.earth",
+              "group": "t:global.icons.ecology_category"
+            },
+            {
+              "value": "picto-leaf",
+              "label": "t:global.icons.leaf",
+              "group": "t:global.icons.ecology_category"
+            },
+            {
+              "value": "picto-recycle",
+              "label": "t:global.icons.recycle",
+              "group": "t:global.icons.ecology_category"
+            },
+            {
+              "value": "picto-tree",
+              "label": "t:global.icons.tree",
+              "group": "t:global.icons.ecology_category"
+            },
+            {
+              "value": "picto-at-sign",
+              "label": "t:global.icons.at_sign",
+              "group": "t:global.icons.tech_category"
+            },
+            {
+              "value": "picto-bluetooth",
+              "label": "t:global.icons.bluetooth",
+              "group": "t:global.icons.tech_category"
+            },
+            {
+              "value": "picto-camera",
+              "label": "t:global.icons.camera",
+              "group": "t:global.icons.tech_category"
+            },
+            {
+              "value": "picto-printer",
+              "label": "t:global.icons.printer",
+              "group": "t:global.icons.tech_category"
+            },
+            {
+              "value": "picto-smart-watch",
+              "label": "t:global.icons.smart_watch",
+              "group": "t:global.icons.tech_category"
+            },
+            {
+              "value": "picto-wifi",
+              "label": "t:global.icons.wifi",
+              "group": "t:global.icons.tech_category"
+            },
+            {
+              "value": "picto-avatar",
+              "label": "t:global.icons.avatar",
+              "group": "t:global.icons.communication_category"
+            },
+            {
+              "value": "picto-chat",
+              "label": "t:global.icons.chat",
+              "group": "t:global.icons.communication_category"
+            },
+            {
+              "value": "picto-calendar",
+              "label": "t:global.icons.calendar",
+              "group": "t:global.icons.communication_category"
+            },
+            {
+              "value": "picto-comment",
+              "label": "t:global.icons.comment",
+              "group": "t:global.icons.communication_category"
+            },
+            {
+              "value": "picto-customer-support",
+              "label": "t:global.icons.customer_support",
+              "group": "t:global.icons.communication_category"
+            },
+            {
+              "value": "picto-happy-face",
+              "label": "t:global.icons.happy_face",
+              "group": "t:global.icons.communication_category"
+            },
+            {
+              "value": "picto-mailbox",
+              "label": "t:global.icons.mailbox",
+              "group": "t:global.icons.communication_category"
+            },
+            {
+              "value": "picto-mobile-phone",
+              "label": "t:global.icons.mobile_phone",
+              "group": "t:global.icons.communication_category"
+            },
+            {
+              "value": "picto-operator",
+              "label": "t:global.icons.operator",
+              "group": "t:global.icons.communication_category"
+            },
+            {
+              "value": "picto-phone",
+              "label": "t:global.icons.phone",
+              "group": "t:global.icons.communication_category"
+            },
+            {
+              "value": "picto-send",
+              "label": "t:global.icons.send",
+              "group": "t:global.icons.communication_category"
+            },
+            {
+              "value": "picto-user",
+              "label": "t:global.icons.user",
+              "group": "t:global.icons.communication_category"
+            },
+            {
+              "value": "picto-burger",
+              "label": "t:global.icons.burger",
+              "group": "t:global.icons.food_category"
+            },
+            {
+              "value": "picto-beer",
+              "label": "t:global.icons.beer",
+              "group": "t:global.icons.food_category"
+            },
+            {
+              "value": "picto-coffee",
+              "label": "t:global.icons.coffee",
+              "group": "t:global.icons.food_category"
+            },
+            {
+              "value": "picto-pizza",
+              "label": "t:global.icons.pizza",
+              "group": "t:global.icons.food_category"
+            },
+            {
+              "value": "picto-bottle",
+              "label": "t:global.icons.bottle",
+              "group": "t:global.icons.food_category"
+            },
+            {
+              "value": "picto-document",
+              "label": "t:global.icons.document",
+              "group": "t:global.icons.other_category"
+            },
+            {
+              "value": "picto-error",
+              "label": "t:global.icons.error",
+              "group": "t:global.icons.other_category"
+            },
+            {
+              "value": "picto-file",
+              "label": "t:global.icons.file",
+              "group": "t:global.icons.other_category"
+            },
+            {
+              "value": "picto-jewelry",
+              "label": "t:global.icons.jewelry",
+              "group": "t:global.icons.other_category"
+            },
+            {
+              "value": "picto-mask",
+              "label": "t:global.icons.mask",
+              "group": "t:global.icons.other_category"
+            },
+            {
+              "value": "picto-music",
+              "label": "t:global.icons.music",
+              "group": "t:global.icons.other_category"
+            },
+            {
+              "value": "picto-not-allowed",
+              "label": "t:global.icons.not_allowed",
+              "group": "t:global.icons.other_category"
+            },
+            {
+              "value": "picto-target",
+              "label": "t:global.icons.target",
+              "group": "t:global.icons.other_category"
+            },
+            {
+              "value": "picto-timer",
+              "label": "t:global.icons.timer",
+              "group": "t:global.icons.other_category"
+            },
+            {
+              "value": "picto-success",
+              "label": "t:global.icons.success",
+              "group": "t:global.icons.other_category"
+            }
+          ],
+          "default": "none"
+        },
+        {
+          "type": "image_picker",
+          "id": "custom_icon",
+          "label": "t:global.icons.custom_icon",
+          "info": "t:global.icons.custom_icon_info"
+        },
+        {
+          "type": "range",
+          "id": "icon_width",
+          "min": 12,
+          "max": 32,
+          "step": 4,
+          "unit": "px",
+          "label": "t:global.icons.icon_width",
+          "default": 16
+        },
+        {
+          "type": "color",
+          "id": "background",
+          "label": "t:global.colors.background",
+          "default": "#ffffff"
+        },
+        {
+          "type": "color",
+          "id": "text_color",
+          "label": "t:global.colors.text",
+          "default": "#6b6b6b"
+        },
+        {
+          "type": "color",
+          "id": "border_color",
+          "label": "t:global.colors.border"
+        }
+      ]
+    },
+    {
+      "type": "text",
+      "name": "t:sections.main_product.blocks.text.name",
+      "settings": [
+        {
+          "type": "richtext",
+          "id": "text",
+          "label": "t:global.text.content",
+          "default": "<p>Share some content to your customers about your products.</p>"
+        }
+      ]
+    },
+    {
+      "type": "accordion",
+      "name": "t:sections.main_product.blocks.collapsible_text.name",
+      "settings": [
+        {
+          "type": "checkbox",
+          "id": "show_below_gallery",
+          "label": "t:sections.main_product.blocks.collapsible_text.show_below_gallery",
+          "default": true
+        },
+        {
+          "type": "select",
+          "id": "icon",
+          "label": "t:global.icons.icon",
+          "options": [
+            {
+              "value": "none",
+              "label": "t:global.icons.none"
+            },
+            {
+              "value": "picto-award-gift",
+              "label": "t:global.icons.award_gift",
+              "group": "t:global.icons.shop_category"
+            },
+            {
+              "value": "picto-bag-handle",
+              "label": "t:global.icons.bag_handle",
+              "group": "t:global.icons.shop_category"
+            },
+            {
+              "value": "picto-building",
+              "label": "t:global.icons.building",
+              "group": "t:global.icons.shop_category"
+            },
+            {
+              "value": "picto-coupon",
+              "label": "t:global.icons.coupon",
+              "group": "t:global.icons.shop_category"
+            },
+            {
+              "value": "picto-gift",
+              "label": "t:global.icons.gift",
+              "group": "t:global.icons.shop_category"
+            },
+            {
+              "value": "picto-info",
+              "label": "t:global.icons.info",
+              "group": "t:global.icons.shop_category"
+            },
+            {
+              "value": "picto-love",
+              "label": "t:global.icons.love",
+              "group": "t:global.icons.shop_category"
+            },
+            {
+              "value": "picto-percent",
+              "label": "t:global.icons.percent",
+              "group": "t:global.icons.shop_category"
+            },
+            {
+              "value": "picto-star",
+              "label": "t:global.icons.star",
+              "group": "t:global.icons.shop_category"
+            },
+            {
+              "value": "picto-box",
+              "label": "t:global.icons.box",
+              "group": "t:global.icons.shipping_category"
+            },
+            {
+              "value": "picto-delivery-truck",
+              "label": "t:global.icons.delivery_truck",
+              "group": "t:global.icons.shipping_category"
+            },
+            {
+              "value": "picto-pin",
+              "label": "t:global.icons.pin",
+              "group": "t:global.icons.shipping_category"
+            },
+            {
+              "value": "picto-plane",
+              "label": "t:global.icons.plane",
+              "group": "t:global.icons.shipping_category"
+            },
+            {
+              "value": "picto-return",
+              "label": "t:global.icons.return",
+              "group": "t:global.icons.shipping_category"
+            },
+            {
+              "value": "picto-credit-card",
+              "label": "t:global.icons.credit_card",
+              "group": "t:global.icons.payment_and_security_category"
+            },
+            {
+              "value": "picto-lock",
+              "label": "t:global.icons.lock",
+              "group": "t:global.icons.payment_and_security_category"
+            },
+            {
+              "value": "picto-money",
+              "label": "t:global.icons.money",
+              "group": "t:global.icons.payment_and_security_category"
+            },
+            {
+              "value": "picto-secure-profile",
+              "label": "t:global.icons.secure_profile",
+              "group": "t:global.icons.payment_and_security_category"
+            },
+            {
+              "value": "picto-shield",
+              "label": "t:global.icons.shield",
+              "group": "t:global.icons.payment_and_security_category"
+            },
+            {
+              "value": "picto-earth",
+              "label": "t:global.icons.earth",
+              "group": "t:global.icons.ecology_category"
+            },
+            {
+              "value": "picto-leaf",
+              "label": "t:global.icons.leaf",
+              "group": "t:global.icons.ecology_category"
+            },
+            {
+              "value": "picto-recycle",
+              "label": "t:global.icons.recycle",
+              "group": "t:global.icons.ecology_category"
+            },
+            {
+              "value": "picto-tree",
+              "label": "t:global.icons.tree",
+              "group": "t:global.icons.ecology_category"
+            },
+            {
+              "value": "picto-at-sign",
+              "label": "t:global.icons.at_sign",
+              "group": "t:global.icons.tech_category"
+            },
+            {
+              "value": "picto-bluetooth",
+              "label": "t:global.icons.bluetooth",
+              "group": "t:global.icons.tech_category"
+            },
+            {
+              "value": "picto-camera",
+              "label": "t:global.icons.camera",
+              "group": "t:global.icons.tech_category"
+            },
+            {
+              "value": "picto-printer",
+              "label": "t:global.icons.printer",
+              "group": "t:global.icons.tech_category"
+            },
+            {
+              "value": "picto-smart-watch",
+              "label": "t:global.icons.smart_watch",
+              "group": "t:global.icons.tech_category"
+            },
+            {
+              "value": "picto-wifi",
+              "label": "t:global.icons.wifi",
+              "group": "t:global.icons.tech_category"
+            },
+            {
+              "value": "picto-avatar",
+              "label": "t:global.icons.avatar",
+              "group": "t:global.icons.communication_category"
+            },
+            {
+              "value": "picto-chat",
+              "label": "t:global.icons.chat",
+              "group": "t:global.icons.communication_category"
+            },
+            {
+              "value": "picto-calendar",
+              "label": "t:global.icons.calendar",
+              "group": "t:global.icons.communication_category"
+            },
+            {
+              "value": "picto-comment",
+              "label": "t:global.icons.comment",
+              "group": "t:global.icons.communication_category"
+            },
+            {
+              "value": "picto-customer-support",
+              "label": "t:global.icons.customer_support",
+              "group": "t:global.icons.communication_category"
+            },
+            {
+              "value": "picto-happy-face",
+              "label": "t:global.icons.happy_face",
+              "group": "t:global.icons.communication_category"
+            },
+            {
+              "value": "picto-mailbox",
+              "label": "t:global.icons.mailbox",
+              "group": "t:global.icons.communication_category"
+            },
+            {
+              "value": "picto-mobile-phone",
+              "label": "t:global.icons.mobile_phone",
+              "group": "t:global.icons.communication_category"
+            },
+            {
+              "value": "picto-operator",
+              "label": "t:global.icons.operator",
+              "group": "t:global.icons.communication_category"
+            },
+            {
+              "value": "picto-phone",
+              "label": "t:global.icons.phone",
+              "group": "t:global.icons.communication_category"
+            },
+            {
+              "value": "picto-send",
+              "label": "t:global.icons.send",
+              "group": "t:global.icons.communication_category"
+            },
+            {
+              "value": "picto-user",
+              "label": "t:global.icons.user",
+              "group": "t:global.icons.communication_category"
+            },
+            {
+              "value": "picto-burger",
+              "label": "t:global.icons.burger",
+              "group": "t:global.icons.food_category"
+            },
+            {
+              "value": "picto-beer",
+              "label": "t:global.icons.beer",
+              "group": "t:global.icons.food_category"
+            },
+            {
+              "value": "picto-coffee",
+              "label": "t:global.icons.coffee",
+              "group": "t:global.icons.food_category"
+            },
+            {
+              "value": "picto-pizza",
+              "label": "t:global.icons.pizza",
+              "group": "t:global.icons.food_category"
+            },
+            {
+              "value": "picto-bottle",
+              "label": "t:global.icons.bottle",
+              "group": "t:global.icons.food_category"
+            },
+            {
+              "value": "picto-document",
+              "label": "t:global.icons.document",
+              "group": "t:global.icons.other_category"
+            },
+            {
+              "value": "picto-error",
+              "label": "t:global.icons.error",
+              "group": "t:global.icons.other_category"
+            },
+            {
+              "value": "picto-file",
+              "label": "t:global.icons.file",
+              "group": "t:global.icons.other_category"
+            },
+            {
+              "value": "picto-jewelry",
+              "label": "t:global.icons.jewelry",
+              "group": "t:global.icons.other_category"
+            },
+            {
+              "value": "picto-mask",
+              "label": "t:global.icons.mask",
+              "group": "t:global.icons.other_category"
+            },
+            {
+              "value": "picto-music",
+              "label": "t:global.icons.music",
+              "group": "t:global.icons.other_category"
+            },
+            {
+              "value": "picto-not-allowed",
+              "label": "t:global.icons.not_allowed",
+              "group": "t:global.icons.other_category"
+            },
+            {
+              "value": "picto-target",
+              "label": "t:global.icons.target",
+              "group": "t:global.icons.other_category"
+            },
+            {
+              "value": "picto-timer",
+              "label": "t:global.icons.timer",
+              "group": "t:global.icons.other_category"
+            },
+            {
+              "value": "picto-success",
+              "label": "t:global.icons.success",
+              "group": "t:global.icons.other_category"
+            }
+          ],
+          "default": "none"
+        },
+        {
+          "type": "image_picker",
+          "id": "custom_icon",
+          "label": "t:global.icons.custom_icon",
+          "info": "t:global.icons.custom_icon_info"
+        },
+        {
+          "type": "inline_richtext",
+          "id": "title",
+          "label": "t:global.text.title",
+          "default": "Title"
+        },
+        {
+          "type": "richtext",
+          "id": "content",
+          "label": "t:global.text.content",
+          "default": "<p>Share some content to your customers about your products.</p>"
+        },
+        {
+          "type": "liquid",
+          "id": "liquid",
+          "label": "t:global.code.liquid",
+          "info": "t:sections.main_product.blocks.collapsible_text.liquid_info"
+        },
+        {
+          "type": "page",
+          "id": "page",
+          "label": "t:sections.main_product.blocks.collapsible_text.page",
+          "info": "t:sections.main_product.blocks.collapsible_text.page_info"
+        }
+      ]
+    },
+    {
+      "type": "liquid",
+      "name": "t:sections.main_product.blocks.liquid.name",
+      "settings": [
+        {
+          "type": "liquid",
+          "id": "liquid",
+          "label": "t:global.code.liquid",
+          "info": "t:global.code.liquid_info"
+        }
+      ]
+    },
+    {
+      "type": "modal",
+      "name": "t:sections.main_product.blocks.modal.name",
+      "settings": [
+        {
+          "type": "paragraph",
+          "content": "t:sections.main_product.blocks.modal.instructions"
+        },
+        {
+          "type": "header",
+          "content": "Button"
+        },
+        {
+          "type": "inline_richtext",
+          "id": "button_title",
+          "label": "t:global.text.button_text",
+          "default": "Button title"
+        },
+        {
+          "type": "select",
+          "id": "button_style",
+          "label": "t:global.text.style",
+          "options": [
+            {
+              "value": "outline",
+              "label": "t:global.text.link_style_options.outline"
+            },
+            {
+              "value": "solid",
+              "label": "t:global.text.link_style_options.solid"
+            },
+            {
+              "value": "link",
+              "label": "t:global.text.link_style_options.link"
+            }
+          ],
+          "default": "solid"
+        },
+        {
+          "type": "checkbox",
+          "id": "stretch_button",
+          "label": "t:sections.main_product.blocks.button.stretch"
+        },
+        {
+          "type": "color",
+          "id": "button_background",
+          "label": "t:global.colors.background"
+        },
+        {
+          "type": "color",
+          "id": "button_text_color",
+          "label": "t:global.colors.text"
+        },
+        {
+          "type": "header",
+          "content": "t:sections.main_product.blocks.modal.modal_category"
+        },
+        {
+          "type": "inline_richtext",
+          "id": "modal_title",
+          "label": "t:sections.main_product.blocks.modal.modal_title",
+          "default": "Modal title"
+        },
+        {
+          "type": "richtext",
+          "id": "modal_content",
+          "label": "t:sections.main_product.blocks.modal.modal_content",
+          "default": "<p>Write some content that will appear in a modal</p>"
+        }
+      ]
+    },
+    {
+      "type": "image",
+      "name": "t:sections.main_product.blocks.image.name",
+      "settings": [
+        {
+          "type": "image_picker",
+          "id": "image",
+          "label": "t:global.image.image"
+        },
+        {
+          "type": "select",
+          "id": "alignment",
+          "label": "t:global.image.alignment",
+          "options": [
+            {
+              "value": "start",
+              "label": "t:global.position.left"
+            },
+            {
+              "value": "center",
+              "label": "t:global.position.center"
+            },
+            {
+              "value": "end",
+              "label": "t:global.position.right"
+            }
+          ],
+          "default": "start"
+        },
+        {
+          "type": "radio",
+          "id": "width_mode",
+          "label": "t:global.image.width",
+          "options": [
+            {
+              "value": "full_width",
+              "label": "t:global.image.width_options.full_width"
+            },
+            {
+              "value": "custom",
+              "label": "t:global.image.width_options.custom"
+            }
+          ],
+          "default": "custom"
+        },
+        {
+          "type": "range",
+          "id": "max_width",
+          "min": 100,
+          "max": 600,
+          "step": 10,
+          "unit": "px",
+          "label": "t:global.image.maximum_width",
+          "default": 300,
+          "visible_if": "{{ block.settings.width_mode == 'custom' }}"
+        },
+        {
+          "type": "range",
+          "id": "mobile_max_width",
+          "min": 100,
+          "max": 600,
+          "step": 10,
+          "unit": "px",
+          "label": "t:global.image.mobile_maximum_width",
+          "default": 200,
+          "visible_if": "{{ block.settings.width_mode == 'custom' }}"
+        }
+      ]
+    },
+    {
+      "type": "button",
+      "name": "t:sections.main_product.blocks.button.name",
+      "settings": [
+        {
+          "type": "paragraph",
+          "content": "t:sections.main_product.blocks.button.instructions"
+        },
+        {
+          "type": "url",
+          "id": "link",
+          "label": "t:sections.main_product.blocks.button.link"
+        },
+        {
+          "type": "text",
+          "id": "text",
+          "label": "t:sections.main_product.blocks.button.text",
+          "default": "Button"
+        },
+        {
+          "type": "checkbox",
+          "id": "stretch",
+          "label": "t:sections.main_product.blocks.button.stretch"
+        },
+        {
+          "type": "color",
+          "id": "background",
+          "label": "t:global.colors.background"
+        },
+        {
+          "type": "color",
+          "id": "text_color",
+          "label": "t:global.colors.text"
+        }
+      ]
+    },
+    {
+      "type": "share_buttons",
+      "name": "t:sections.main_product.blocks.share_buttons.name",
+      "settings": [
+        {
+          "type": "paragraph",
+          "content": "t:sections.main_product.blocks.share_buttons.instructions"
+        }
+      ]
+    },
+    {
+      "type": "more_information",
+      "name": "t:sections.main_product.blocks.more_information.name",
+      "limit": 1,
+      "settings": [
+        {
+          "type": "paragraph",
+          "content": "t:sections.main_product.blocks.more_information.instructions"
+        },
+        {
+          "type": "inline_richtext",
+          "id": "text",
+          "label": "t:sections.main_product.blocks.more_information.text",
+          "default": "More information"
+        }
+      ]
+    }
+  ]
+}
+{% endschema %}

@@ -1,0 +1,606 @@
+{%- assign color_scheme_hash = section.settings.color_scheme.settings.background_gradient
+  | default: section.settings.color_scheme.settings.background
+  | md5
+-%}
+
+<div class="section-spacing section-spacing--tight color-scheme color-scheme--{{ section.settings.color_scheme.id }} color-scheme--bg-{{ color_scheme_hash }}">
+  {%- if cart.empty? -%}
+    <div class="container container--xs">
+      <div class="empty-state">
+        <div class="prose">
+          <h1 class="h4">{{ 'cart.general.title' | t }}</h1>
+          <p>{{ 'cart.general.empty' | t }}</p>
+          {%- assign button_content = 'cart.general.continue_shopping' | t -%}
+          {%- render 'button', content: button_content, href: settings.cart_empty_cart_link -%}
+        </div>
+      </div>
+    </div>
+  {%- else -%}
+    <div class="container container--sm">
+      <div class="section-stack">
+        <div class="section-header justify-self-center text-center">
+          <div class="v-stack gap-4">
+            <h1 class="h2">{{ 'cart.general.title' | t }}</h1>
+
+            {%- if settings.cart_show_free_shipping_bar -%}
+              {%- render 'free-shipping-bar' -%}
+            {%- endif -%}
+          </div>
+        </div>
+
+        <form action="{{ routes.cart_url }}" method="POST" class="cart-page">
+          <input type="hidden" name="attributes[products_mobile_grid_mode]" value="">
+          <input type="hidden" name="attributes[products_desktop_grid_mode]" value="">
+
+          <div class="v-stack gap-6">
+            {%- comment -%}
+              ----------------------------------------------------------------------------------------------------------------
+              ORDER SUMMARY
+              ----------------------------------------------------------------------------------------------------------------
+            {%- endcomment -%}
+            <table class="order-summary table--reduce-border">
+              <thead class="order-summary__header">
+                <tr>
+                  <th>{{ 'cart.order.product' | t }}</th>
+                  <th class="text-center">{{ 'cart.order.quantity' | t }}</th>
+                  <th class="text-end">{{ 'cart.order.total' | t }}</th>
+                </tr>
+              </thead>
+
+              <tbody class="order-summary__body">
+                {%- for line_item in cart.items -%}
+                  <tr>
+                    <td>{%- render 'line-item', line_item: line_item, show_quantity_selector: true -%}</td>
+
+                    <td class="text-center">
+                      <div class="v-stack gap-2">
+                        <line-item-quantity class="v-stack justify-items-center gap-2">
+                          {%- if line_item.properties['Engraving'] == 'Yes' -%}
+                            <span style="font-size:14px;font-weight:500;padding:6px 16px;border:1px solid #e0e0e0;border-radius:4px;">1</span>
+                            <span style="font-size:11px;color:#999;font-style:italic;">Personalised Item</span>
+                            <a href="{{ line_item.url_to_remove }}" class="link text-xs" aria-label="{{ 'cart.order.remove_with_title' | t: title: line_item.title | escape }}">{{- 'cart.order.remove' | t -}}</a>
+                          {%- else -%}
+                            {%- render 'quantity-selector', line_item: line_item, size: 'sm' -%}
+                            <a href="{{ line_item.url_to_remove }}" class="link text-xs" aria-label="{{ 'cart.order.remove_with_title' | t: title: line_item.title | escape }}">{{- 'cart.order.remove' | t -}}</a>
+                          {%- endif -%}
+                        </line-item-quantity>
+                      </div>
+                    </td>
+
+                    <td class="text-end">
+                      {%- if settings.currency_code_enabled -%}
+                        {{- line_item.final_line_price | money_with_currency -}}
+                      {%- else -%}
+                        {{- line_item.final_line_price | money -}}
+                      {%- endif -%}
+                    </td>
+                  </tr>
+                {%- endfor -%}
+              </tbody>
+            </table>
+
+            {% if customer %}
+              {% assign points = customer.metafields.custom.loyalty_points | default: 0 %}
+              {% assign conversion_rate = 1 %}
+              {% assign credit_value = points | times: conversion_rate %}
+
+              {% comment %} {% if points > 0 %} {% endcomment %}
+              <div
+                id="div-loyalty-section"
+                style="margin-top:20px; padding:15px; border:1px solid #ddd; border-radius:8px;text-align:right"
+              >
+                {% comment %}
+                  <h4>🎁 You have {{ points }} loyalty points (worth ₹{{ credit_value }})</h4>
+                  <button
+                    id="apply-points-cart"
+                    data-points="{{ points }}"
+                    data-customer-id="{{ customer.id }}"
+                    type="button"
+                    style="padding:10px 15px; background:#0070c0; color:white; border:none; border-radius:5px;"
+                  >
+                    Redeem Points
+                  </button>
+                {% endcomment %}
+              </div>
+              {% comment %} {% endif %} {% endcomment %}
+
+              <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.0/dist/confetti.browser.min.js"></script>
+              <script>
+            
+                document.addEventListener('DOMContentLoaded', function () {
+                let customerPhone = '{{ customer.phone | escape }}';
+                customerPhone = customerPhone.replace(/^\+\d{1,2}/, '');
+                console.log('customerPhone= ' + customerPhone);
+                  const loyaltyPrefix = 'POINTS-';
+                  const customerId = window.customerId || '{{ customer.id | default: 0 }}';
+
+                if (customerPhone) {
+                    getPoints(customerPhone,customerId);
+                  }
+                  function triggerGlitter() {
+                    const screenWidth = window.innerWidth;
+                    const screenHeight = window.innerHeight;
+
+                    confetti({
+                      particleCount: 400,
+                      angle: 90,
+                      spread: 360,
+                      origin: { x: 0.5, y: 0.5 },
+                      colors: ['#FFD700', '#FF69B4', '#00FFFF', '#FF4500', '#32CD32', '#ffffff'],
+                      gravity: 1,
+                      scalar: 1.2,
+                      startVelocity: 50,
+                      ticks: 200,
+                    });
+
+                    // Burst multiple times for effect
+                    const end = Date.now() + 400;
+                    (function frame() {
+                      confetti({
+                        particleCount: 100,
+                        spread: 300,
+                        startVelocity: 30,
+                        origin: { x: Math.random(), y: Math.random() - 0.2 },
+                        colors: ['#FFD700', '#FF69B4', '#00FFFF', '#FF4500', '#32CD32'],
+                      });
+                      if (Date.now() < end) requestAnimationFrame(frame);
+                    })();
+                  }
+
+                  // Mask coupon code display
+                  const discountBadges = document.querySelectorAll(
+                    '.discount-badge, .cart-discount, .cart__discounts span'
+                  );
+                  discountBadges.forEach((badge) => {
+                    const text = badge.textContent.trim();
+                    if (text.startsWith(loyaltyPrefix)) {
+                      badge.textContent = 'Loyalty Discount';
+                    }
+                  });
+
+                  document.addEventListener('click', function (event) {
+  const btn = event.target.closest('#apply-points-cart');
+  if (!btn) return; // Not our button
+
+  const points = parseInt(btn.dataset.points, 10);
+  const customerId = btn.dataset.customerId;
+
+  if (points <= 0) {
+    alert('You have no loyalty points.');
+    return;
+  }
+  
+  // Show loading state
+btn.disabled = true;
+btn.textContent = 'Applying...';
+
+  fetch('https://shopifyapi.colorbarapps.com/loyalty/create-loyalty-discount', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ customerId: customerId, points: points }),
+  })
+    .then((res) => res.json())
+    .then((data) => {
+      if (data.discount_code) {
+        const expiry = Date.now() + 5 * 60 * 1000; // expires in 5 mins
+        sessionStorage.setItem(
+          'loyaltyCoupon_' + customerId,
+          JSON.stringify({ code: data.discount_code, expiresAt: expiry })
+        );
+        sessionStorage.setItem(
+          'loyaltyCoupon_value_' + customerId,
+          JSON.stringify({ code: data.discount_value, expiresAt: expiry })
+        );
+
+        const msg = `🎉 ₹${data.discount_value} loyalty points applied successfully.`;
+        showAppliedMessage(msg);
+        triggerGlitter(); // 🎉
+        window.location.href = `/checkout?discount=${data.discount_code}`;
+      } else {
+        alert('Failed to create discount');
+        console.error(data);
+              btn.disabled = false;
+      btn.textContent = 'Redeem Points';
+      }
+    })
+    .catch((err) => {
+      console.error('Error:', err);
+      alert('Something went wrong');
+            btn.disabled = false;
+      btn.textContent = 'Redeem Points';
+    });
+});
+
+
+                  // Checkout expiry check
+                  const checkoutButton = document.querySelector(
+                    '[name="checkout"], .cart__checkout, .cart__submit, button[type="submit"][name="checkout"]'
+                  );
+                  if (checkoutButton) {
+                    checkoutButton.addEventListener('click', function (event) {
+                      const loyaltyCoupon = sessionStorage.getItem('loyaltyCoupon_' + customerId);
+                      const loyaltyCouponValue = sessionStorage.getItem('loyaltyCoupon_value_' + customerId);
+                      if (!loyaltyCoupon) return;
+
+                      const { code, expiresAt } = JSON.parse(loyaltyCoupon);
+                      const now = Date.now();
+                     
+
+                      if (now > expiresAt) {
+                        event.preventDefault();
+                         showExpiryWarning(code);
+                        
+                         // Hide all applied discount rows that mention loyalty
+                        {% comment %} const discountRows = document.querySelectorAll('.h-stack.justify-start.gap-2');
+                        discountRows.forEach((row) => {
+                          const text = row.innerText.trim();
+                          if (text.includes('Loyalty Discount') || text.includes(code)) {
+                            row.style.display = 'none';
+                          }
+                        }); {% endcomment %}
+
+                        return false;
+                      }
+                    });
+                  }
+
+                  function showExpiryWarning(code) {
+                    //console.log('⚠️ showExpiryWarning called for:', code);
+
+                    // Remove previous banner if exists
+                    const oldBanner = document.querySelector('.loyalty-warning-banner');
+                    if (oldBanner) oldBanner.remove();
+
+                    const banner = document.createElement('div');
+                    banner.className = 'loyalty-warning-banner';
+
+                    banner.innerHTML = `
+                      <div style="display:flex; align-items:center; gap:10px;">
+                        <svg width="24" height="24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <circle cx="12" cy="12" r="10" stroke="#fff"></circle>
+                          <line x1="12" y1="8" x2="12" y2="12"></line>
+                          <line x1="12" y1="16" x2="12" y2="16"></line>
+                        </svg>
+                        <span style="flex:1; font-weight:600; font-size:15px;">
+                          ⚠️ Your loyalty coupon has expired.
+                              You can re-apply your coupon or continue to checkout without the discount.	
+                        </span>
+                        <button id="reapplyBtn"
+                          style="background:#fff;color:#856404;border:none;padding:5px 12px;
+                                border-radius:6px;cursor:pointer;font-weight:600;transition:0.2s;">
+                          Re-redeem
+                        </button> &nbsp;
+                        <button id="continueCheckoutBtn"
+                          style="background:#fff;color:#856404;border:none;padding:5px 12px;
+                                border-radius:6px;cursor:pointer;font-weight:600;transition:0.2s;">
+                          Continue Without Redeem
+                        </button>
+                      </div>
+                    `;
+
+                    // Toast style with gradient and shadow
+                    banner.style.position = 'fixed';
+                    banner.style.top = '-100px'; // start hidden above
+                    banner.style.left = '50%';
+                    banner.style.transform = 'translateX(-50%)';
+                    banner.style.zIndex = '999999';
+                    banner.style.background = 'linear-gradient(90deg, rgb(255 114 7), rgb(255, 179, 0))';
+                    banner.style.color = '#fff';
+                    banner.style.padding = '14px 20px';
+                    banner.style.borderRadius = '12px';
+                    banner.style.boxShadow = '0 6px 18px rgba(0,0,0,0.25)';
+                    banner.style.fontFamily = 'Arial, sans-serif';
+                    banner.style.fontSize = '16px';
+                    banner.style.fontWeight = '600';
+                    banner.style.display = 'flex';
+                    banner.style.alignItems = 'center';
+                    banner.style.gap = '10px';
+                    banner.style.transition = 'top 0.5s ease, opacity 0.5s ease';
+                    banner.style.opacity = '0';
+
+                    document.body.prepend(banner);
+
+                    // Animate banner in
+                    setTimeout(() => {
+                      banner.style.top = '20px';
+                      banner.style.opacity = '1';
+                    }, 50);
+
+                    // Reapply points button
+                    document.getElementById('reapplyBtn').addEventListener('click', () => {
+                      document.getElementById('apply-points-cart')?.click();
+                      banner.style.top = '-100px';
+                      setTimeout(() => banner.remove(), 500);
+                    });
+
+                    document.getElementById('continueCheckoutBtn').addEventListener('click', () => {
+                       // Animate the banner (optional)
+                      banner.style.top = '-100px';
+                      // Remove the banner after animation
+                      setTimeout(() => {
+                        banner.remove();
+                        // ✅ Redirect to checkout
+                        window.location.href = '/checkout';
+                      }, 500);
+                    });
+
+                    // Auto-hide after 8 seconds
+                    setTimeout(() => {
+                      banner.style.top = '-100px';
+                      banner.style.opacity = '0';
+                      setTimeout(() => banner.remove(), 500);
+                    }, 20000);
+                  }
+                  function showAppliedMessage(message) {
+                    //console.log('⚠️ showExpiryWarning called for:', code);
+
+                    // Remove previous banner if exists
+                    const oldBanner = document.querySelector('.loyalty-warning-banner');
+                    if (oldBanner) oldBanner.remove();
+
+                    const banner = document.createElement('div');
+                    banner.className = 'loyalty-warning-banner';
+
+                    banner.innerHTML =
+                      `
+                      <div style="display:flex; align-items:center; gap:10px;">
+                        <svg width="24" height="24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <circle cx="12" cy="12" r="10" stroke="#fff"></circle>
+                          <line x1="12" y1="8" x2="12" y2="12"></line>
+                          <line x1="12" y1="16" x2="12" y2="16"></line>
+                        </svg>
+                        <span style="flex:1; font-weight:600; font-size:15px;">
+                          ` +
+                      message +
+                      `
+                        </span>
+                      </div>
+                    `;
+
+                    // Toast style with gradient and shadow
+                    banner.style.position = 'fixed';
+                    banner.style.top = '-100px'; // start hidden above
+                    banner.style.left = '50%';
+                    banner.style.transform = 'translateX(-50%)';
+                    banner.style.zIndex = '999999';
+                    banner.style.background = 'linear-gradient(90deg, rgb(255 114 7), rgb(255, 179, 0))';
+                    banner.style.color = '#fff';
+                    banner.style.padding = '14px 20px';
+                    banner.style.borderRadius = '12px';
+                    banner.style.boxShadow = '0 6px 18px rgba(0,0,0,0.25)';
+                    banner.style.fontFamily = 'Arial, sans-serif';
+                    banner.style.fontSize = '16px';
+                    banner.style.fontWeight = '600';
+                    banner.style.display = 'flex';
+                    banner.style.alignItems = 'center';
+                    banner.style.gap = '10px';
+                    banner.style.transition = 'top 0.5s ease, opacity 0.5s ease';
+                    banner.style.opacity = '0';
+
+                    document.body.prepend(banner);
+
+                    // Animate banner in
+                    setTimeout(() => {
+                      banner.style.top = '20px';
+                      banner.style.opacity = '1';
+                    }, 50);
+
+                    // Auto-hide after 8 seconds
+                    setTimeout(() => {
+                      banner.style.top = '-100px';
+                      banner.style.opacity = '0';
+                      setTimeout(() => banner.remove(), 500);
+                    }, 20000);
+                  }
+                function getPoints(mobile, customerId) {
+  fetch(`https://shopifyapi.colorbarapps.com/loyalty/getpoints?mobileNo=${mobile}`)
+    .then(response => response.json())
+    .then(data => {
+      console.log('Loyalty API Response:', data);
+
+      // Check if API response is valid and has points > 0
+      if (data && data.status === true && data.points > 0) {
+        const points = data.points;
+        const creditValue = (points / 1).toFixed(2); // adjust the conversion logic if needed
+
+        // Create the loyalty section HTML dynamically
+        const loyaltyHTML = `
+            <h4>🎁 You have ${points} loyalty points (worth ₹${creditValue})</h4>
+            <button
+              id="apply-points-cart"
+              data-points="${points}"
+              data-customer-id="${customerId}"
+              type="button"
+              style="padding:10px 15px; background:#0070c0; color:white; border:none; border-radius:5px;"
+            >
+              Redeem Points
+            </button>
+        `;
+
+        // Insert into the DOM (replace or append as needed)
+        const container = document.getElementById('div-loyalty-section');
+        if (container) {
+          container.innerHTML = loyaltyHTML;
+        } else {
+          const fallback = document.createElement('div');
+          fallback.className = 'div-loyalty-section';
+          fallback.innerHTML = loyaltyHTML;
+          document.body.appendChild(fallback); // Or append to a specific container
+        }
+      }
+    })
+    .catch(error => { 
+      console.error('Error fetching loyalty points:', error);
+    });
+}
+
+                });
+              </script>
+            {% endif %}
+
+            {%- comment -%}
+              ----------------------------------------------------------------------------------------------------------------
+              CART FOOTER
+              ----------------------------------------------------------------------------------------------------------------
+            {%- endcomment -%}
+            <div class="cart-footer">
+              {%- if section.settings.show_cart_note -%}
+                <cart-note class="cart-note">
+                  {%- assign order_note = 'cart.general.add_order_note' | t -%}
+                  {%- assign placeholder = 'cart.general.note_placeholder' | t -%}
+                  {%- render 'input',
+                    name: 'note',
+                    multiline: 3,
+                    label: order_note,
+                    value: cart.note,
+                    placeholder: placeholder,
+                    show_label_as_block: true
+                  -%}
+                </cart-note>
+              {%- endif -%}
+
+              <div class="cart-recap">
+                {%- comment -%}Give apps a special hook to add features on the recap (such as capturing delivery dates){%- endcomment -%}
+                {%- for block in section.blocks -%}
+                  {%- if block.type == '@app' -%}
+                    {%- render block -%}
+                  {%- endif -%}
+                {%- endfor -%}
+
+                {%- if section.settings.show_order_weight -%}
+                  <div class="h-stack justify-start gap-2">
+                    <span class="text-subdued">{{ 'cart.general.weight' | t }}:</span>
+                    <span class="text-subdued">{{ cart.total_weight | weight_with_unit }}</span>
+                  </div>
+                {%- endif -%}
+
+                {%- if cart.items_subtotal_price != cart.total_price -%}
+                  <div class="h-stack justify-start gap-2">
+                    <span class="text-subdued">{{ 'cart.general.subtotal' | t }}:</span>
+                    <span class="text-subdued">
+                      {%- if settings.currency_code_enabled -%}
+                        {{- cart.items_subtotal_price | money_with_currency -}}
+                      {%- else -%}
+                        {{- cart.items_subtotal_price | money -}}
+                      {%- endif -%}
+                    </span>
+                  </div>
+                {%- endif -%}
+
+                {% for discount_application in cart.cart_level_discount_applications %}
+                  <div class="h-stack justify-start gap-2">
+                    <span class="discount-badge text-xs">
+                      {%- render 'icon' with 'discount', width: 12 -%}
+                      {{- discount_application.title -}}
+                    </span>
+                    <span class="text-subdued">-{{ discount_application.total_allocated_amount | money }}</span>
+                  </div>
+                {% endfor %}
+
+                <div class="h-stack justify-start gap-2">
+                  <span class="text-lg">{{ 'cart.general.total' | t }}:</span>
+                  <span class="text-lg">{{- cart.total_price | money_with_currency -}}</span>
+                </div>
+
+                {%- if section.settings.show_shipping_text -%}
+                  {%- if cart.taxes_included and shop.shipping_policy.body != blank -%}
+                    <p class="text-subdued text-sm">
+                      {{ 'cart.general.taxes_included_and_shipping_policy_html' | t: link: shop.shipping_policy.url }}
+                    </p>
+                  {%- elsif cart.taxes_included -%}
+                    <p class="text-subdued text-sm">{{ 'cart.general.taxes_included_but_shipping_at_checkout' | t }}</p>
+                  {%- elsif shop.shipping_policy.body != blank -%}
+                    <p class="text-subdued text-sm">
+                      {{
+                        'cart.general.taxes_and_shipping_policy_at_checkout_html'
+                        | t: link: shop.shipping_policy.url
+                      }}
+                    </p>
+                  {%- else -%}
+                    <p class="text-subdued text-sm">{{ 'cart.general.taxes_and_shipping_at_checkout' | t }}</p>
+                  {%- endif -%}
+                {%- endif -%}
+
+                {%- if section.settings.show_accelerated_buttons and additional_checkout_buttons -%}
+                  <div class="additional-checkout-buttons additional-checkout-buttons--vertical">
+                    {{- content_for_additional_checkout_buttons -}}
+                  </div>
+                {% endif %}
+
+                <noscript>
+                  {%- assign update_button = 'cart.general.update_cart' | t -%}
+                  {%- render 'button', type: 'submit', content: update_button, style: 'outline' -%}
+                </noscript>
+
+                {%- assign checkout_button = 'cart.general.checkout' | t -%}
+                {%- render 'button', type: 'submit', content: checkout_button, name: 'checkout' -%}
+              </div>
+            </div>
+          </div>
+
+          {%- comment -%}
+            ----------------------------------------------------------------------------------------------------------------
+            SHIPPING ESTIMATOR
+            ----------------------------------------------------------------------------------------------------------------
+          {%- endcomment -%}
+
+          {%- if section.settings.show_shipping_estimator and cart.requires_shipping -%}
+            {%- render 'shipping-estimator' -%}
+          {%- endif -%}
+        </form>
+      </div>
+    </div>
+  {%- endif -%}
+</div>
+
+{% schema %}
+{
+  "name": "t:sections.main_cart.name",
+  "class": "shopify-section--main-cart",
+  "tag": "section",
+  "settings": [
+    {
+      "type": "color_scheme",
+      "id": "color_scheme",
+      "label": "t:global.colors.scheme",
+      "default": "scheme-1"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_cart_note",
+      "label": "t:sections.main_cart.show_cart_note",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_order_weight",
+      "label": "t:sections.main_cart.show_order_weight",
+      "default": false
+    },
+    {
+      "type": "checkbox",
+      "id": "show_shipping_text",
+      "label": "t:sections.main_cart.show_shipping_text",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_accelerated_buttons",
+      "label": "t:sections.main_cart.show_accelerated_buttons",
+      "info": "t:sections.main_cart.show_accelerated_buttons_info",
+      "default": false
+    },
+    {
+      "type": "checkbox",
+      "id": "show_shipping_estimator",
+      "label": "t:sections.main_cart.show_shipping_estimator",
+      "default": true
+    }
+  ],
+  "blocks": [
+    {
+      "type": "@app"
+    }
+  ]
+}
+{% endschema %}
