@@ -36,5 +36,5 @@ npm-debug.log*
 # admin-dashboard/backend/package-lock.json
 
 # Old/original folders (reorganized into proper structure)
-SCREENSHOTS/
-Shopify code/
+/SCREENSHOTS/
+/Shopify code/
