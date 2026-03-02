@@ -301,7 +301,7 @@ colorbar-engraving-platform/
 │   │   └── utils/
 │   │       └── statusColors.js            # Status color mappings
 │   ├── backend/
-│   │   ├── server.js                      # Express API (3000+ lines)
+│   │   ├── server.js                      # Express API server (~930 lines)
 │   │   ├── db.js                          # JSON file persistence layer
 │   │   ├── package.json                   # Backend dependencies
 │   │   └── .env.example                   # Environment variable template
