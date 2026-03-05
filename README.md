@@ -455,7 +455,7 @@ This project implements **enterprise-grade security** suitable for production us
 
 **Ujjawal Raj**
 - Role: Full-Stack Developer at Modi Enterprises (Colorbar Cosmetics)
-- Email: ujjawalraj@modicare.com
+- Email: rajpr8769@gmail.com
 - Built & deployed: February 2026
 
 ---
